@@ -137,6 +137,7 @@ The city hides a few secrets. Hints: look closely at the neon signs and windows,
 .claude-plugin/plugin.json       plugin manifest
 .claude-plugin/marketplace.json  marketplace: install via /plugin
 hooks/register.tsx               /sniper command, panel, sounds, best score, save, language
+hooks/winaudio.ps1               sound player for Windows (the engine plays sounds on macOS only)
 hooks/game.tsx                   the game: logic, drawing, texts in English and Russian
 sounds/                          sound effects (WAV)
 tests/                           tests

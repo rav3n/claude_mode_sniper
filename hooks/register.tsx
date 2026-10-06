@@ -1,4 +1,4 @@
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'sniper'
 
@@ -27,11 +27,63 @@ const SFX: Record<string, number> = {
   meow: 0.7,
 }
 
-// the music plays while this controller is alive
-let music: AbortController | undefined
-const stopMusic = () => {
-  music?.abort()
+type Engine = EngineInterface
+
+// the engine plays clips with afplay on macOS only; on Windows a PowerShell
+// child (winaudio.ps1) plays them, taking commands as files in its queue
+const isWindows = (root: string) => /^[A-Za-z]:[\\/]/.test(root) || root.startsWith('\\\\')
+
+type WinPlayer = { queue: string; seq: number }
+let win: Promise<WinPlayer> | undefined
+const winPath = (root: string, ...parts: string[]) => [root.replaceAll('/', '\\'), ...parts].join('\\')
+const winPlayer = ($: Engine) => {
+  if (win) return win
+  const started: Promise<WinPlayer> = (async () => {
+    const temp = (await $.env.get('TEMP')) ?? winPath($.plugin.root, '.cache')
+    const queue = winPath(temp, 'claude-sniper-audio', crypto.randomUUID())
+    const root = $.plugin.root
+    const argv = ['powershell', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', winPath(root, 'hooks', 'winaudio.ps1'), '-Queue', queue, '-Warm', winPath(root, 'sounds', 'zoom.wav')]
+    void (async () => {
+      try {
+        for await (const _ of $.process.spawn({ argv })) void _
+      } catch {}
+      // it left on its own after a long idle: the next sound starts another
+      if (win === started) win = undefined
+    })()
+    return { queue, seq: 0 }
+  })()
+  win = started
+  return started
+}
+const winSend = async ($: Engine, line: string) => {
+  const player = await winPlayer($)
+  const name = String(++player.seq).padStart(10, '0')
+  await $.fs.write(winPath(player.queue, `${name}.cmd`), `${line}\n`)
+}
+
+const playSfx = async ($: Engine, name: string, gain: number) => {
+  if (isWindows($.plugin.root)) await winSend($, `play|${gain}|${winPath($.plugin.root, 'sounds', `${name}.wav`)}`).catch(() => {})
+  else void $.audio.play({ asset: `sounds/${name}.wav` }, { gain }).catch(() => {})
+}
+
+// the music plays while this is set: the macOS clip's controller, or the
+// Windows player's loop
+let music: AbortController | 'win' | undefined
+const startMusic = async ($: Engine) => {
+  if (isWindows($.plugin.root)) {
+    music = 'win'
+    await winSend($, `loop|music|0.35|${winPath($.plugin.root, 'sounds', 'music.wav')}`).catch(() => {})
+    return
+  }
+  const ctl = new AbortController()
+  music = ctl
+  void $.audio.play({ asset: 'sounds/music.wav' }, { shouldLoop: true, gain: 0.35, signal: ctl.signal }).catch(() => {})
+}
+const stopMusic = async ($: Engine) => {
+  const playing = music
   music = undefined
+  if (playing === 'win') await winSend($, 'stop|music').catch(() => {})
+  else playing?.abort()
 }
 
 export const register: Register = on => {
@@ -46,6 +98,8 @@ export const register: Register = on => {
 
   on('command.run', { command: 'sniper' }, async $ => {
     const ru = (await $.store.get('lang')) === 'ru'
+    // the Windows player takes a second to warm up: start it with the pane
+    if (isWindows($.plugin.root)) void winPlayer($).catch(() => {})
     await $.ui.open({ id: PANE, title: ru ? 'Снайпер' : 'Sniper', focus: true, closeOnEscape: true, rows: 32 })
 
     return { text: ru ? 'Снайпер на позиции. Кликни по панели, чтобы она получила клавиатуру.' : 'Sniper in position. Click the panel to give it the keyboard.' }
@@ -68,12 +122,12 @@ export const register: Register = on => {
   })
 
   on('ui.close', async ($, e, next) => {
-    if (e.id === PANE) stopMusic()
+    if (e.id === PANE) await stopMusic($)
     return next(e)
   })
 
   on('session.end', async ($, e, next) => {
-    stopMusic()
+    await stopMusic($)
     return next(e)
   })
 
@@ -85,15 +139,10 @@ export const register: Register = on => {
 
     for (const name of Array.isArray(data?.sfx) ? data.sfx : []) {
       const gain = typeof name === 'string' ? SFX[name] : undefined
-      if (gain !== undefined) void $.audio.play({ asset: `sounds/${name}.wav` }, { gain }).catch(() => {})
+      if (gain !== undefined) await playSfx($, name as string, gain)
     }
-    if (data?.music === true && !music) {
-      const ctl = new AbortController()
-      music = ctl
-      void $.audio
-        .play({ asset: 'sounds/music.wav' }, { shouldLoop: true, gain: 0.35, signal: ctl.signal })
-        .catch(() => {})
-    } else if (data?.music === false) stopMusic()
+    if (data?.music === true && !music) await startMusic($)
+    else if (data?.music === false) await stopMusic($)
 
     if (data?.best === undefined) return {}
     const score = Number(data.best)

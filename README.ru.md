@@ -137,6 +137,7 @@ claude --plugin-dir ~/claude_mode_sniper
 .claude-plugin/plugin.json       манифест плагина
 .claude-plugin/marketplace.json  маркетплейс: установка через /plugin
 hooks/register.tsx               команда /sniper, панель, звуки, рекорд, сохранение, язык
+hooks/winaudio.ps1               проигрыватель звуков для Windows (движок играет звук только на macOS)
 hooks/game.tsx                   сама игра: логика, отрисовка, тексты на английском и русском
 sounds/                          звуки (WAV)
 tests/                           тесты

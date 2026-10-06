@@ -91,6 +91,16 @@ test('shot, reload and music play', async ($, on) => {
     played.push(clip.asset ?? '?')
     return undefined as never
   })
+  // on Windows the sounds go to the PowerShell player through its queue
+  mock.env(on, { TEMP: 'C:\\Temp' })
+  on('process.spawn', async function* () {
+    return { code: 0, signal: null }
+  })
+  on('fs.write', async ($, e) => {
+    const m = /sounds\\(\w+)\.wav$/.exec(e.text.trim())
+    if (m) played.push(`sounds/${m[1]}.wav`)
+    return null as never
+  })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.key({ key: '2', in: 'game' })
