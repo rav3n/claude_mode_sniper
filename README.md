@@ -1,5 +1,7 @@
 # ◎ SNIPER 2026
 
+**English** | [Русский](README.ru.md)
+
 A sniper game on a neon street — a mod for [Claude Code](https://claude.com/claude-code). It opens in a panel right in your terminal, so you can take a few shots while Claude is thinking.
 
 Enemies pop out of windows, doors, from behind cars and barricades. The street has several stages: clear a position and the sniper moves on to the next one. Every level adds something new. The game speaks English and Russian — press `L` to switch.
