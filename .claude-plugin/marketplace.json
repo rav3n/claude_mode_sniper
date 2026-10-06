@@ -1,0 +1,20 @@
+{
+  "name": "claude-mode-sniper",
+  "owner": {
+    "name": "Вячеслав Ефимов",
+    "url": "https://github.com/rav3n"
+  },
+  "metadata": {
+    "description": "Снайпер на неоновой улице: игра в панели Claude Code",
+    "version": "0.4.0"
+  },
+  "plugins": [
+    {
+      "name": "sniper",
+      "source": "./",
+      "description": "Снайпер на неоновой улице: этапы, перебежки, каски, заложники, тепловизор. Играй в панели, пока Claude думает",
+      "category": "games",
+      "tags": ["game", "sniper", "mod", "terminal"]
+    }
+  ]
+}

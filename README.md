@@ -18,21 +18,50 @@
 
 Нужен Claude Code с поддержкой модов (плагинов с хуками) и терминал хотя бы 50×16 символов.
 
-1. Склонируй репозиторий:
+Внутри Claude Code:
 
-   ```bash
-   git clone git@github.com:rav3n/claude_mode_sniper.git ~/claude_mode_sniper
-   ```
+```
+/plugin marketplace add rav3n/claude_mode_sniper
+/plugin install sniper@claude-mode-sniper
+/reload-plugins
+```
 
-2. Запусти Claude Code с модом:
+Потом набери `/sniper` и кликни по панели, чтобы она получила клавиатуру. `Esc` закрывает игру.
 
-   ```bash
-   claude --plugin-dir ~/claude_mode_sniper
-   ```
+<details>
+<summary><strong>Из терминала</strong></summary>
 
-3. В сессии набери `/sniper` и кликни по панели, чтобы она получила клавиатуру. `Esc` закрывает игру.
+```bash
+claude plugin marketplace add rav3n/claude_mode_sniper
+claude plugin install sniper@claude-mode-sniper
+```
 
-Чтобы мод загружался всегда, без флага, добавь путь в `~/.claude/settings.json`:
+Затем в сессии `/reload-plugins` и `/sniper`.
+
+</details>
+
+<details>
+<summary><strong>Обновление и удаление</strong></summary>
+
+```bash
+claude plugin marketplace update claude-mode-sniper
+claude plugin update sniper@claude-mode-sniper
+claude plugin uninstall sniper@claude-mode-sniper
+```
+
+После обновления — `/reload-plugins` в открытой сессии.
+
+</details>
+
+<details>
+<summary><strong>Для разработки: из папки</strong></summary>
+
+```bash
+git clone git@github.com:rav3n/claude_mode_sniper.git ~/claude_mode_sniper
+claude --plugin-dir ~/claude_mode_sniper
+```
+
+Папку, переданную через `--plugin-dir`, Claude Code отслеживает: правки перезагружают мод сами. Чтобы подключать её без флага, добавь в `~/.claude/settings.json`:
 
 ```json
 {
@@ -42,7 +71,7 @@
 }
 ```
 
-Обновление — `git pull` в папке мода. Если Claude Code открыт, мод перезагрузится сам.
+</details>
 
 ## Управление
 
@@ -98,7 +127,8 @@
 ## Разработка
 
 ```
-.claude-plugin/plugin.json   манифест
+.claude-plugin/plugin.json   манифест плагина
+.claude-plugin/marketplace.json  маркетплейс: установка через /plugin
 hooks/register.tsx           команда /sniper, панель, звуки, рекорд и сохранение
 hooks/game.tsx               сама игра: логика и отрисовка
 sounds/                      звуки (WAV)
