@@ -4,7 +4,9 @@ import type { ClientKeyEvent, ClientModule, ClientPointerEvent, ClientSurface } 
 // из-за машин и баррикад, по небу летают дроны. Зачистил позицию — камера
 // сама переезжает дальше по улице. Графика символьная: одна клетка — один объект.
 
-type Props = { best?: number }
+// Контрольная точка: начало этапа. Хранится в store плагина между запусками.
+type Save = { level: number; stage: number; score: number; shots: number; hits: number; diff: number; hp: number }
+type Props = { best?: number; save?: Save | null }
 
 type SpawnKind = 'window' | 'door' | 'car' | 'barrier' | 'roof'
 type Spawn = { kind: SpawnKind; x: number; y: number; rows: number; busy: boolean; used: boolean }
@@ -160,6 +162,9 @@ type Game = {
   music: boolean
   sent: string // что последним ушло хукам про музыку
   bestPending: number
+  saved: Save | null
+  savePending: Save | null | undefined // что отправить хукам; undefined — нечего
+  armed: boolean // идёт настоящая игра, а не заставка меню — можно сохранять
   theme: Theme
   wind: number // сдвиг пули по ветру, клеток
   focus: number // заряд фокуса 0..1
@@ -446,6 +451,9 @@ const newGame = (W: number, H: number, best: number, seed: number): Game => {
     music: true,
     sent: '',
     bestPending: -1,
+    saved: null,
+    savePending: undefined,
+    armed: false,
     theme: THEMES[0]!,
     wind: 0,
     focus: 0,
@@ -469,7 +477,12 @@ const newGame = (W: number, H: number, best: number, seed: number): Game => {
   return g
 }
 
-const startLevel = (g: Game, level: number) => {
+const checkpoint = (g: Game, save: Save) => {
+  g.saved = save
+  g.savePending = save
+}
+
+const startLevel = (g: Game, level: number, stage = 0) => {
   g.level = level
   g.stages = Math.min(4, 2 + Math.floor((level - 1) / 2))
   g.hp = diffOf(g).hp
@@ -477,7 +490,7 @@ const startLevel = (g: Game, level: number) => {
   g.enemies = []
   g.fx = []
   buildStreet(g)
-  startStage(g, 0)
+  startStage(g, Math.min(stage, g.stages - 1))
 }
 
 const startStage = (g: Game, stage: number) => {
@@ -512,6 +525,7 @@ const startStage = (g: Game, stage: number) => {
   g.supplyT = 9000 + ri(g, 0, 9000)
   g.ufo = null
   g.ufoT = g.level >= 3 && rnd(g) < 0.4 ? ri(g, 3000, 20000) : 1e9
+  if (g.armed) checkpoint(g, { level: g.level, stage, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: g.hp })
   const news = stage === 0 ? NEWS[Math.min(g.level, 7)] : undefined
   if (news && g.level <= 7) showBanner(g, `УРОВЕНЬ ${g.level} · НОВОЕ: ${news}`, '#7dff6b', 3500)
   else showBanner(g, `УРОВЕНЬ ${g.level} · ЭТАП ${stage + 1}/${g.stages}`, '#ffe14d', 1500)
@@ -639,6 +653,8 @@ const finish = (g: Game, phase: Phase, reason: string) => {
   if (g.score > g.best) g.best = g.score
   g.bestPending = g.score
   g.sfx.push(phase === 'won' ? 'win' : 'lose')
+  // уровень пройден — следующий начнём отсюда
+  if (phase === 'won') checkpoint(g, { level: g.level + 1, stage: 0, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: diffOf(g).hp })
 }
 
 // брызги разлетаются и оседают кровью на стенах и тротуаре
@@ -1515,6 +1531,8 @@ const overlay = (g: Game, l: Layer) => {
     lines.push([diffOf(g).hint, diffOf(g).color])
     lines.push(['', ''])
     lines.push(['Пробел или клик — начать', '#ffe14d'])
+    const sv = g.saved
+    if (sv) lines.push([`C — продолжить: уровень ${sv.level}, этап ${sv.stage + 1}, счёт ${sv.score}`, '#7dff6b'])
   } else if (g.phase === 'won') {
     lines.push([`УРОВЕНЬ ${g.level} ПРОЙДЕН`, '#7dff6b'])
     lines.push([g.reason, '#e0e0e0'])
@@ -1526,7 +1544,7 @@ const overlay = (g: Game, l: Layer) => {
     lines.push([g.reason, '#e0e0e0'])
     lines.push([`Уровень ${g.level} · этап ${g.stage + 1}/${g.stages} · счёт ${g.score} · рекорд ${g.best}`, '#e0e0e0'])
     lines.push(['', ''])
-    lines.push(['Клик или R — заново · M — сложность', '#ffe14d'])
+    lines.push([g.saved ? 'Клик или R — заново · C — с начала этапа · M — сложность' : 'Клик или R — заново · M — сложность', '#ffe14d'])
   } else if (g.paused) {
     lines.push(['ПАУЗА', '#ffe14d'])
     lines.push(['P — продолжить', '#e0e0e0'])
@@ -1668,7 +1686,7 @@ const Game: ClientModule<Props, State> = (props, surface) => {
   const best = props?.best ?? 0
 
   if (W < 50 || H < 14) {
-    if (!surface.state && W > 0) init(surface, W, H, best)
+    if (!surface.state && W > 0) init(surface, W, H, best, props?.save ?? null)
     return (
       <Box flexDirection="column" padding={1} width={Math.max(1, W)} height={Math.max(1, surface.rows)}>
         <Text color="#2ef2ff">◎ SNIPER 2026</Text>
@@ -1677,7 +1695,7 @@ const Game: ClientModule<Props, State> = (props, surface) => {
     )
   }
 
-  const st = surface.state ?? init(surface, W, H, best)
+  const st = surface.state ?? init(surface, W, H, best, props?.save ?? null)
   const g = st.g
   if (g.W !== W || g.H !== H) {
     // размер поменялся — перестраиваем улицу, этап начинаем заново
@@ -1717,18 +1735,21 @@ const Game: ClientModule<Props, State> = (props, surface) => {
 const flushPost = (g: Game, post: (d: unknown) => void) => {
   const fighting = g.phase === 'play' || g.phase === 'move' || g.phase === 'clear'
   const music = g.music && g.sound && fighting && !g.paused ? 'on' : 'off'
-  if (!g.sfx.length && music === g.sent && g.bestPending < 0) return
-  const msg: { sfx?: string[]; music: boolean; best?: number } = { music: music === 'on' }
+  if (!g.sfx.length && music === g.sent && g.bestPending < 0 && g.savePending === undefined) return
+  const msg: { sfx?: string[]; music: boolean; best?: number; save?: Save | null } = { music: music === 'on' }
   if (g.sfx.length && g.sound) msg.sfx = [...new Set(g.sfx)]
   if (g.bestPending >= 0) msg.best = g.bestPending
+  if (g.savePending !== undefined) msg.save = g.savePending
   g.sfx = []
   g.sent = music
   g.bestPending = -1
+  g.savePending = undefined
   post(msg)
 }
 
-const init = (surface: ClientSurface<State>, W: number, H: number, best: number): State => {
+const init = (surface: ClientSurface<State>, W: number, H: number, best: number, save: Save | null): State => {
   const g = newGame(Math.max(W, 50), Math.max(H, 14), best, (Date.now() & 0xffffffff) >>> 0)
+  g.saved = save
   const first: State = { g, frame: 0 }
   surface.setState(first)
   const cur = () => (surface.state ?? first).g
@@ -1782,7 +1803,8 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number)
     konami(g, k)
     const step = e.shift ? 4 : 1
     const n = Number(k)
-    if (g.phase === 'intro' && n >= 1 && n <= DIFFS.length) {
+    if ((k === 'c' || k === 'с') && (g.phase === 'intro' || g.phase === 'lost') && g.saved) resume(g)
+    else if (g.phase === 'intro' && n >= 1 && n <= DIFFS.length) {
       g.diff = n - 1
       begin(g)
     } else if (g.phase === 'intro' && (k === 'up' || k === 'w' || k === 'ц')) g.diff = Math.max(0, g.diff - 1)
@@ -1831,10 +1853,25 @@ const begin = (g: Game) => {
 }
 
 const restart = (g: Game) => {
+  g.armed = true
   g.score = 0
   g.shots = 0
   g.hits = 0
   startLevel(g, 1)
+}
+
+// продолжить с сохранённого этапа
+const resume = (g: Game) => {
+  const sv = g.saved
+  if (!sv) return
+  g.armed = true
+  g.diff = sv.diff
+  g.score = sv.score
+  g.shots = sv.shots
+  g.hits = sv.hits
+  startLevel(g, sv.level, sv.stage)
+  g.hp = Math.max(1, Math.min(sv.hp, diffOf(g).hp))
+  checkpoint(g, { ...sv, stage: g.stage, hp: g.hp })
 }
 
 // для офлайн-проверок

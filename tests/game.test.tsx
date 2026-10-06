@@ -128,3 +128,29 @@ test('код Konami даёт радужные трассеры и +10 патро
   expect(await ui.find({ type: 'Text', text: /▮×16/, in: 'game' })).toBeDefined()
   await ui.unmount()
 })
+
+test('сохранение: после перезапуска панели меню предлагает продолжить', async ($, on) => {
+  mock.store(on, { best: 0 })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /C — продолжить/, in: 'game' })).toBeUndefined()
+  await ui.key({ key: '2', in: 'game' })
+  await ui.advance(100)
+  await ui.unmount()
+
+  const again = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await again.resize({ columns: 100, rows: 30, in: 'game' })
+  expect(await again.find({ type: 'Text', text: /C — продолжить: уровень 1, этап 1, счёт 0/, in: 'game' })).toBeDefined()
+  await again.unmount()
+})
+
+test('сохранение: меню предлагает продолжить, C возвращает на сохранённый этап', async ($, on) => {
+  mock.store(on, { best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /C — продолжить: уровень 3, этап 2, счёт 1234/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'c', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /ур\.3 этап 2\/3/, in: 'game' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /♥♥♡/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+})

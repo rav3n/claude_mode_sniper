@@ -57,12 +57,12 @@ export const register: Register = on => {
     }
     const { Client } = $.ui.resolve({ ...e, surface: e.surface })
     const best = Number((await $.store.get('best')) ?? 0)
-
+    const save = (await $.store.get('save')) ?? null
     // регион берёт размер тела панели, иначе он сжимается до нарисованного
     const columns = Math.max(1, e.props?.bodyColumns ?? e.viewport?.columns ?? 80)
     const rows = Math.max(1, e.props?.scroll?.bodyRows ?? 30)
 
-    return <Client key="game" module="./game.tsx" props={{ best }} width={columns} height={rows} />
+    return <Client key="game" module="./game.tsx" props={{ best, save }} width={columns} height={rows} />
   })
 
   on('ui.close', async ($, e, next) => {
@@ -76,7 +76,9 @@ export const register: Register = on => {
   })
 
   on('ui.message', async ($, e) => {
-    const data = e.data as { best?: unknown; sfx?: unknown; music?: unknown } | null
+    const data = e.data as { best?: unknown; sfx?: unknown; music?: unknown; save?: unknown } | null
+    // прогресс: контрольная точка в начале этапа
+    if (data?.save !== undefined) await $.store.set('save', data.save as never)
 
     for (const name of Array.isArray(data?.sfx) ? data.sfx : []) {
       const gain = typeof name === 'string' ? SFX[name] : undefined
@@ -98,6 +100,6 @@ export const register: Register = on => {
       $.ui.toast(`Снайпер: новый рекорд — ${score}`)
     }
 
-    return { props: { best: Math.max(score, best) } }
+    return { props: { best: Math.max(score, best), save: (await $.store.get('save')) ?? null } }
   })
 }
