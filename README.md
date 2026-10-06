@@ -1,24 +1,26 @@
 # ◎ SNIPER 2026
 
-Снайпер на неоновой улице — мод для [Claude Code](https://claude.com/claude-code). Игра открывается в панели прямо в терминале: можно пострелять, пока Claude думает над задачей.
+A sniper game on a neon street — a mod for [Claude Code](https://claude.com/claude-code). It opens in a panel right in your terminal, so you can take a few shots while Claude is thinking.
 
-Враги лезут из окон, дверей, из-за машин и баррикад. Улица состоит из нескольких этапов: зачистил позицию — снайпер сам перебегает к следующей. С каждым уровнем появляется что-то новое.
+Enemies pop out of windows, doors, from behind cars and barricades. The street has several stages: clear a position and the sniper moves on to the next one. Every level adds something new. The game speaks English and Russian — press `L` to switch.
 
-![Улица](docs/street.svg)
+![Menu](docs/intro.svg)
 
-| Оптика | Тепловизор в блэкаут |
+![Street](docs/street.svg)
+
+| Scope | Thermal in a blackout |
 |---|---|
-| ![Оптика](docs/scope.svg) | ![Тепловизор](docs/thermal.svg) |
+| ![Scope](docs/scope.svg) | ![Thermal](docs/thermal.svg) |
 
-| Закат | Снег |
+| Sunset | Snow |
 |---|---|
-| ![Закат](docs/sunset.svg) | ![Снег](docs/snow.svg) |
+| ![Sunset](docs/sunset.svg) | ![Snow](docs/snow.svg) |
 
-## Установка
+## Install
 
-Нужен Claude Code с поддержкой модов (плагинов с хуками) и терминал хотя бы 50×16 символов.
+You need Claude Code with mod (hook plugin) support and a terminal of at least 50×16 characters.
 
-Внутри Claude Code:
+Inside Claude Code, run:
 
 ```
 /plugin marketplace add rav3n/claude_mode_sniper
@@ -26,22 +28,22 @@
 /reload-plugins
 ```
 
-Потом набери `/sniper` и кликни по панели, чтобы она получила клавиатуру. `Esc` закрывает игру.
+Then type `/sniper` and click the panel to give it the keyboard. `Esc` closes the game.
 
 <details>
-<summary><strong>Из терминала</strong></summary>
+<summary><strong>Prefer the terminal?</strong></summary>
 
 ```bash
 claude plugin marketplace add rav3n/claude_mode_sniper
 claude plugin install sniper@claude-mode-sniper
 ```
 
-Затем в сессии `/reload-plugins` и `/sniper`.
+Then run `/reload-plugins` and `/sniper` inside a session.
 
 </details>
 
 <details>
-<summary><strong>Обновление и удаление</strong></summary>
+<summary><strong>Update and uninstall</strong></summary>
 
 ```bash
 claude plugin marketplace update claude-mode-sniper
@@ -49,19 +51,19 @@ claude plugin update sniper@claude-mode-sniper
 claude plugin uninstall sniper@claude-mode-sniper
 ```
 
-После обновления — `/reload-plugins` в открытой сессии.
+After an update, run `/reload-plugins` in an open session.
 
 </details>
 
 <details>
-<summary><strong>Для разработки: из папки</strong></summary>
+<summary><strong>For development: from a folder</strong></summary>
 
 ```bash
 git clone git@github.com:rav3n/claude_mode_sniper.git ~/claude_mode_sniper
 claude --plugin-dir ~/claude_mode_sniper
 ```
 
-Папку, переданную через `--plugin-dir`, Claude Code отслеживает: правки перезагружают мод сами. Чтобы подключать её без флага, добавь в `~/.claude/settings.json`:
+Claude Code watches a `--plugin-dir` folder, so edits reload the mod on their own. To load it without the flag, add this to `~/.claude/settings.json`:
 
 ```json
 {
@@ -73,73 +75,76 @@ claude --plugin-dir ~/claude_mode_sniper
 
 </details>
 
-## Управление
+## Controls
 
-| Действие | Клавиши |
+| Action | Keys |
 |---|---|
-| Прицел | мышь, стрелки или `WASD` (`Shift` — быстрее) |
-| Огонь | клик, `Пробел`, `F`, `Enter` |
-| Оптика 2× | `Z`, `E`, `Q`, `Tab`, правая кнопка мыши или кнопка «◎ ЗУМ» в углу |
-| Фокус (замедление) | `C` — со 2-го уровня, копится за убийства |
-| Тепловизор | `T` — с 3-го уровня, батарея садится и заряжается |
-| Пауза / заново | `P` / `R` |
-| Музыка / звук | `B` / `V` |
-| Сложность | `1`–`4` в меню, `M` после боя |
-| Продолжить сохранённую игру | `C` в меню, после провала — с начала этапа |
+| Aim | mouse, arrows or `WASD` (`Shift` — faster) |
+| Fire | click, `Space`, `F`, `Enter` |
+| 2× scope | `Z`, `E`, `Q`, `Tab`, right mouse button or the "◎ ZOOM" button in the corner |
+| Focus (slow motion) | `C` — from level 2, charged by kills |
+| Thermal | `T` — from level 3, the battery drains and recharges |
+| Pause / restart | `P` / `R` |
+| Language (English / Русский) | `L` |
+| Music / sound | `B` / `V` |
+| Difficulty | `1`–`4` in the menu, `M` after a fight |
+| Continue a saved game | `C` in the menu; after a loss — retry the stage |
 
-## Как играть
+Keys also work on a Russian keyboard layout.
 
-- Без оптики пуля гуляет, в устоявшемся прицеле летит точно. После выстрела затвор передёргивается, и оптика слетает.
-- Мигающий `!` и вспыхнувший ствол — враг сейчас выстрелит.
-- Промахи и пустой магазин — путь к провалу: патроны выдаются на каждый этап.
-- Красные бочки взрываются цепочкой и сносят врагов рядом.
-- Быстрые убийства подряд дают DOUBLE KILL, TRIPLE KILL и RAMPAGE.
-- На последнем враге этапа включается слоумо.
-- Прогресс сохраняется сам: в начале каждого этапа и после пройденного уровня. Закрыл панель или Claude Code — в следующий раз в меню будет «C — продолжить» с уровнем, этапом и счётом.
+## How to play
 
-### Что открывается по уровням
+- Unscoped shots drift; a settled scope is exact. After each shot the bolt cycles and the scope drops.
+- A blinking `!` and a flashing gun mean the enemy is about to fire.
+- Misses and an empty magazine lead to failure: ammo is handed out per stage.
+- Red barrels explode in a chain and take nearby enemies with them.
+- Quick kills in a row give DOUBLE KILL, TRIPLE KILL and RAMPAGE.
+- The last enemy of a stage triggers slow motion.
+- Progress saves itself at the start of every stage and after each completed level. Close the panel or Claude Code — next time the menu offers "C — continue" with your level, stage and score.
 
-| Уровень | Тема | Новое |
+### What each level unlocks
+
+| Level | Theme | New |
 |---|---|---|
-| 1 | неоновая ночь | окна, двери, крыши, машины, баррикады, бочки |
-| 2 | сумерки | враги в касках — первая пуля в голову сбивает каску · фокус |
-| 3 | ночь | заложники в окнах — в них стрелять нельзя · тепловизор |
-| 4 | закат | снайперы на крышах выдают себя бликом · дроны снабжения с патронами и аптечками |
-| 5 | дождь | ветер сносит пулю, в оптике видно, куда она ляжет |
-| 6 | блэкаут | почти темно — выручает тепловизор |
-| 7 | снег | половина врагов в касках |
+| 1 | neon night | windows, doors, roofs, cars, barricades, barrels |
+| 2 | dusk | helmeted enemies — the first head shot knocks the helmet off · focus |
+| 3 | night | hostages in windows — don't shoot them · thermal |
+| 4 | sunset | rooftop snipers give themselves away with a glint · supply drones with ammo and medkits |
+| 5 | rain | wind pushes the bullet; the scope shows where it will land |
+| 6 | blackout | almost dark — thermal saves the day |
+| 7 | snow | half the enemies wear helmets |
 
-Дальше темы идут по кругу, а враги становятся быстрее.
+After that the themes cycle and the enemies get faster.
 
-### Сложность
+### Difficulty
 
-| | Жизни | Патроны | Особенности |
+| | Lives | Ammo | Notes |
 |---|---|---|---|
-| Легко | 5 | с запасом | враги медленные |
-| Нормально | 3 | небольшой запас | без оптики пуля гуляет |
-| Сложно | 2 | +1 на этап | прицел качается |
-| Очень сложно | 1 | ровно по целям | промах = провал, без оптики не попасть |
+| Easy | 5 | plenty | slow enemies |
+| Normal | 3 | some spare | shots drift without the scope |
+| Hard | 2 | +1 per stage | the scope sways |
+| Very hard | 1 | exactly one per target | a miss means failure, use the scope |
 
-### Пасхалки
+### Easter eggs
 
-В городе спрятано несколько секретов. Подсказки: присмотрись к неоновым вывескам и окнам, к тому, кто сидит на крышах, и к небу. А ещё есть один код из восьмидесятых.
+The city hides a few secrets. Hints: look closely at the neon signs and windows, at whoever sits on the roofs, and at the sky. There is also a code from the eighties.
 
-## Разработка
+## Development
 
 ```
-.claude-plugin/plugin.json   манифест плагина
-.claude-plugin/marketplace.json  маркетплейс: установка через /plugin
-hooks/register.tsx           команда /sniper, панель, звуки, рекорд и сохранение
-hooks/game.tsx               сама игра: логика и отрисовка
-sounds/                      звуки (WAV)
-tests/                       тесты
+.claude-plugin/plugin.json       plugin manifest
+.claude-plugin/marketplace.json  marketplace: install via /plugin
+hooks/register.tsx               /sniper command, panel, sounds, best score, save, language
+hooks/game.tsx                   the game: logic, drawing, texts in English and Russian
+sounds/                          sound effects (WAV)
+tests/                           tests
 ```
 
-Тесты:
+Tests:
 
 ```bash
 claude plugin test .
 claude plugin validate .
 ```
 
-Кадр игры — дерево цветных текстовых полосок, и у движка модов есть лимит на его размер. Поэтому графика символьная, с крупными однотонными заливками: так поле занимает всю панель. На очень больших панелях оно ограничено примерно 4400 клетками и стоит по центру.
+A game frame is a tree of coloured text spans, and the mod engine limits its size. That is why the graphics are made of characters with large solid fills: this way the field fills the whole panel. On very large panels it is capped at about 4400 cells and centred.

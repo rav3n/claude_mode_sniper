@@ -1,12 +1,13 @@
 import type { ClientKeyEvent, ClientModule, ClientPointerEvent, ClientSurface } from 'claude-code'
 
-// Снайпер: неоновая улица из нескольких этапов. Враги лезут из окон, дверей,
-// из-за машин и баррикад, по небу летают дроны. Зачистил позицию — камера
-// сама переезжает дальше по улице. Графика символьная: одна клетка — один объект.
+// Sniper: a neon street of several stages. Enemies pop out of windows, doors,
+// from behind cars and barricades, drones fly overhead. Clear a position and the
+// camera moves on down the street. Character graphics: one cell, one object.
 
-// Контрольная точка: начало этапа. Хранится в store плагина между запусками.
+// Checkpoint: the start of a stage. Kept in the plugin store between runs.
 type Save = { level: number; stage: number; score: number; shots: number; hits: number; diff: number; hp: number }
-type Props = { best?: number; save?: Save | null }
+type Lang = 'en' | 'ru'
+type Props = { best?: number; save?: Save | null; lang?: Lang }
 
 type SpawnKind = 'window' | 'door' | 'car' | 'barrier' | 'roof'
 type Spawn = { kind: SpawnKind; x: number; y: number; rows: number; busy: boolean; used: boolean }
@@ -17,25 +18,25 @@ type Pose = 'hang' | 'lie' | 'fall' | 'wreck'
 type Enemy = {
   id: number
   kind: SpawnKind | 'drone' | 'runner'
-  spawn: number // индекс в spawns, -1 у дрона
-  x: number // мировая колонка
-  y: number // строка головы
+  spawn: number // index into spawns, -1 for a drone
+  x: number // world column
+  y: number // head row
   rows: number
   st: EnemySt
-  t: number // мс в текущем состоянии
-  aimMs: number // через сколько стреляет
+  t: number // ms in the current state
+  aimMs: number // when it fires
   vx: number
-  tx: number // куда бежит
-  dead: number // мс после смерти; 1e9 — ушёл живым
+  tx: number // where it runs to
+  dead: number // ms since death; 1e9 — left alive
   pose: Pose
   vy: number
   pool: number
-  helmet: boolean // каска: первое попадание в голову её сбивает
-  civ: boolean // мирный житель: не стреляет, попадать нельзя
-  sniper: boolean // снайпер на крыше: целится быстрее, выдаёт себя бликом
+  helmet: boolean // helmet: the first head hit knocks it off
+  civ: boolean // civilian: does not shoot, must not be hit
+  sniper: boolean // rooftop sniper: aims faster, gives itself away with a glint
 }
 
-// stick — капля крови: живёт, пока не долетит до тротуара
+// stick — a blood drop: lives until it reaches the sidewalk
 type Part = { x: number; y: number; vx: number; vy: number; life: number; ch: string; fg: string; stick: boolean }
 type Drip = { x: number; y: number; len: number; max: number; t: number }
 type Fx = { x: number; y: number; text: string; fg: string; ms: number; max: number; rise: boolean }
@@ -45,7 +46,7 @@ type Decal = { ch: string; fg: string; bg?: string }
 
 type Layer = { ch: string[]; fg: string[]; bg: string[] }
 
-// Тема уровня: небо, доля горящих окон, погода
+// Level theme: sky, share of lit windows, weather
 type Theme = { sky: [string, string]; lit: number; rain: boolean; snow: boolean; dim: number }
 const THEMES: Theme[] = [
   { sky: ['#070a1f', '#3a1850'], lit: 0.45, rain: false, snow: false, dim: 0 },
@@ -57,48 +58,243 @@ const THEMES: Theme[] = [
   { sky: ['#0a1430', '#4a5a80'], lit: 0.4, rain: false, snow: true, dim: 0 },
 ]
 
-// что открывается на уровне (с него и дальше)
-const NEWS: Record<number, string> = {
-  2: 'каски — бей в тело · C — фокус',
-  3: 'заложники в окнах · T — тепловизор',
-  4: 'снайперы на крышах · дроны снабжения',
-  5: 'ветер сносит пулю',
-  6: 'блэкаут — включай тепловизор',
-  7: 'снег и все враги разом',
+// ---------- texts ----------
+
+type Texts = {
+  diffs: { name: string; hint: string }[]
+  news: Record<number, string> // what a level unlocks (from it onwards)
+  levelNew: (level: number, news: string) => string
+  levelStage: (level: number, stage: number, stages: number) => string
+  streetClear: (hp: number) => string
+  moving: string
+  shot: string
+  noAmmo: string
+  stageClear: (stage: number, stages: number, bonus: number) => string
+  reloading: string
+  empty: string
+  hostage: string
+  clang: string
+  onTheMove: string
+  plusLife: string
+  plusAmmo: string
+  ufo: string
+  moonSniper: string
+  moon: (n: number) => string
+  claude: string
+  stopLoss: string
+  meow: string
+  catSleeps: string
+  konami: string
+  intro: string[]
+  difficulty: string
+  start: string
+  resume: (s: Save) => string
+  lang: string
+  levelDone: (level: number) => string
+  scoreAcc: (score: number, acc: number) => string
+  nextHint: string
+  failed: string
+  failedStats: (level: number, stage: number, stages: number, score: number, best: number) => string
+  failedHint: (saved: boolean) => string
+  paused: string
+  pauseHint: string
+  hudLevel: (level: number, stage: number, stages: number) => string
+  hudTargets: (k: number, n: number) => string
+  hudAmmo: string
+  hudFocus: string
+  hudFocusReady: string
+  hudFocusOn: string
+  hudHeat: string
+  hudWind: string
+  hudScore: (n: number) => string
+  hudBest: (n: number) => string
+  hudReloading: string
+  hudSoundOff: string
+  hudMusicOff: string
+  zoomBtn: string
+  help: string
+  tooSmall: (w: number, h: number) => string
+}
+
+const TEXTS: Record<Lang, Texts> = {
+  en: {
+    diffs: [
+      { name: 'Easy', hint: '5 lives, plenty of ammo, slow enemies' },
+      { name: 'Normal', hint: '3 lives, some spare ammo, shots drift without the scope' },
+      { name: 'Hard', hint: '2 lives, 1 spare round per stage, the scope sways' },
+      { name: 'Very hard', hint: '1 life, exactly one round per target: a miss means failure. Use the scope' },
+    ],
+    news: {
+      2: 'helmets — aim for the body · C — focus',
+      3: 'hostages in windows · T — thermal',
+      4: 'rooftop snipers · supply drones',
+      5: 'wind pushes the bullet',
+      6: 'blackout — switch on thermal',
+      7: 'snow and every enemy at once',
+    },
+    levelNew: (l, n) => `LEVEL ${l} · NEW: ${n}`,
+    levelStage: (l, s, n) => `LEVEL ${l} · STAGE ${s}/${n}`,
+    streetClear: hp => `Street clear. Life bonus: ${hp} × 100`,
+    moving: 'MOVING ON →',
+    shot: 'You got shot',
+    noAmmo: 'Out of ammo',
+    stageClear: (s, n, b) => `STAGE ${s}/${n} CLEAR · ammo +${b}`,
+    reloading: 'reloading',
+    empty: 'empty',
+    hostage: 'HOSTAGE! −300',
+    clang: 'CLANG!',
+    onTheMove: ' ON THE MOVE',
+    plusLife: '+1 LIFE',
+    plusAmmo: '+3 AMMO',
+    ufo: 'UFO DOWN! · X-FILES +2500',
+    moonSniper: 'MOON SNIPER · +1000',
+    moon: n => `moon ${n}/3`,
+    claude: 'CLAUDE: “Hey, I’m trying to think here!” · +42',
+    stopLoss: 'STOP-LOSS TRIGGERED · +500',
+    meow: 'MEOW!',
+    catSleeps: 'the cat went to sleep',
+    konami: '↑↑↓↓←→←→BA · rainbow tracers · +10 ammo',
+    intro: [
+      'The street has several stages. Clear a position —',
+      'the sniper moves on to the next one.',
+      'A blinking "!" — the enemy is about to fire. Barrels explode.',
+      'Every level adds something: helmets, hostages, snipers, wind…',
+      'Shots drift without the scope. The scope drops after each shot.',
+    ],
+    difficulty: 'Difficulty (1–4, arrows, click a line):',
+    start: 'Space or click — start',
+    resume: s => `C — continue: level ${s.level}, stage ${s.stage + 1}, score ${s.score}`,
+    lang: 'L — language: English',
+    levelDone: l => `LEVEL ${l} COMPLETE`,
+    scoreAcc: (sc, a) => `Score ${sc} · accuracy ${a}%`,
+    nextHint: 'Click or N — next level · M — difficulty',
+    failed: 'MISSION FAILED',
+    failedStats: (l, s, n, sc, b) => `Level ${l} · stage ${s}/${n} · score ${sc} · best ${b}`,
+    failedHint: saved => (saved ? 'Click or R — restart · C — retry the stage · M — difficulty' : 'Click or R — restart · M — difficulty'),
+    paused: 'PAUSED',
+    pauseHint: 'P — resume',
+    hudLevel: (l, s, n) => `│ lv.${l} stage ${s}/${n} `,
+    hudTargets: (k, n) => `│ targets ${k}/${n} `,
+    hudAmmo: '│ ammo ',
+    hudFocus: 'focus',
+    hudFocusReady: 'focus [C]',
+    hudFocusOn: 'FOCUS!',
+    hudHeat: 'heat [T]',
+    hudWind: 'wind',
+    hudScore: n => ` │ score ${n} `,
+    hudBest: n => `│ best ${n} `,
+    hudReloading: '│ reloading ',
+    hudSoundOff: '│ sound off ',
+    hudMusicOff: '│ ♪ off ',
+    zoomBtn: '◎ ZOOM [Z/E]',
+    help: ' mouse/arrows — aim · click/space — fire · Z/E/RMB — scope · C — focus · T — thermal · P — pause · R — restart · L — language · B — music · V — sound · Esc — quit',
+    tooSmall: (w, h) => `Needs at least 50×16 cells, now ${w}×${h}. Make the panel bigger.`,
+  },
+  ru: {
+    diffs: [
+      { name: 'Легко', hint: '5 жизней, много патронов, враги медленные' },
+      { name: 'Нормально', hint: '3 жизни, запас патронов, без зума пуля гуляет' },
+      { name: 'Сложно', hint: '2 жизни, 1 запасной патрон на этап, прицел качается' },
+      { name: 'Очень сложно', hint: '1 жизнь, патронов ровно по целям: промах = провал. Без зума не попасть' },
+    ],
+    news: {
+      2: 'каски — бей в тело · C — фокус',
+      3: 'заложники в окнах · T — тепловизор',
+      4: 'снайперы на крышах · дроны снабжения',
+      5: 'ветер сносит пулю',
+      6: 'блэкаут — включай тепловизор',
+      7: 'снег и все враги разом',
+    },
+    levelNew: (l, n) => `УРОВЕНЬ ${l} · НОВОЕ: ${n}`,
+    levelStage: (l, s, n) => `УРОВЕНЬ ${l} · ЭТАП ${s}/${n}`,
+    streetClear: hp => `Улица чиста. Бонус за жизни: ${hp} × 100`,
+    moving: 'ПЕРЕБЕЖКА →',
+    shot: 'Тебя подстрелили',
+    noAmmo: 'Кончились патроны',
+    stageClear: (s, n, b) => `ЭТАП ${s}/${n} ЗАЧИЩЕН · патроны +${b}`,
+    reloading: 'перезарядка',
+    empty: 'пусто',
+    hostage: 'ЗАЛОЖНИК! −300',
+    clang: 'ДЗЫНЬ!',
+    onTheMove: ' НА ХОДУ',
+    plusLife: '+1 ЖИЗНЬ',
+    plusAmmo: '+3 ПАТРОНА',
+    ufo: 'НЛО СБИТО! · X-FILES +2500',
+    moonSniper: 'ЛУННЫЙ СНАЙПЕР · +1000',
+    moon: n => `луна ${n}/3`,
+    claude: 'CLAUDE: «Эй, я тут вообще-то думаю!» · +42',
+    stopLoss: 'СТОП-ЛОСС СРАБОТАЛ · +500',
+    meow: 'МЯУ!',
+    catSleeps: 'кот ушёл спать',
+    konami: '↑↑↓↓←→←→BA · радужные трассеры · +10 патронов',
+    intro: [
+      'Улица из нескольких этапов. Зачистил позицию —',
+      'снайпер сам переходит к следующей.',
+      'Мигающий «!» — враг сейчас выстрелит. Бочки взрываются.',
+      'С каждым уровнем новое: каски, заложники, снайперы, ветер…',
+      'Без зума пуля гуляет. После выстрела оптика слетает.',
+    ],
+    difficulty: 'Сложность (1–4, стрелки, клик по строке):',
+    start: 'Пробел или клик — начать',
+    resume: s => `C — продолжить: уровень ${s.level}, этап ${s.stage + 1}, счёт ${s.score}`,
+    lang: 'L — язык: русский',
+    levelDone: l => `УРОВЕНЬ ${l} ПРОЙДЕН`,
+    scoreAcc: (sc, a) => `Счёт ${sc} · точность ${a}%`,
+    nextHint: 'Клик или N — следующий уровень · M — сложность',
+    failed: 'МИССИЯ ПРОВАЛЕНА',
+    failedStats: (l, s, n, sc, b) => `Уровень ${l} · этап ${s}/${n} · счёт ${sc} · рекорд ${b}`,
+    failedHint: saved => (saved ? 'Клик или R — заново · C — с начала этапа · M — сложность' : 'Клик или R — заново · M — сложность'),
+    paused: 'ПАУЗА',
+    pauseHint: 'P — продолжить',
+    hudLevel: (l, s, n) => `│ ур.${l} этап ${s}/${n} `,
+    hudTargets: (k, n) => `│ цели ${k}/${n} `,
+    hudAmmo: '│ патроны ',
+    hudFocus: 'фокус',
+    hudFocusReady: 'фокус [C]',
+    hudFocusOn: 'ФОКУС!',
+    hudHeat: 'тепло [T]',
+    hudWind: 'ветер',
+    hudScore: n => ` │ счёт ${n} `,
+    hudBest: n => `│ рекорд ${n} `,
+    hudReloading: '│ перезарядка ',
+    hudSoundOff: '│ звук выкл ',
+    hudMusicOff: '│ ♪ выкл ',
+    zoomBtn: '◎ ЗУМ  [Z/E]',
+    help: ' мышь/стрелки — прицел · клик/пробел — огонь · Z/E/ПКМ — оптика · C — фокус · T — тепловизор · P — пауза · R — заново · L — язык · B — музыка · V — звук · Esc — выйти',
+    tooSmall: (w, h) => `Нужно хотя бы 50×16 клеток, сейчас ${w}×${h}. Растяни панель.`,
+  },
 }
 
 type Sign = { x: number; y: number; len: number; hit: boolean }
-type Flyer = { x: number; y: number; vx: number } // НЛО и дрон снабжения, экранные координаты по y
+type Flyer = { x: number; y: number; vx: number } // UFO and supply drone, screen coordinates
 
 type Phase = 'intro' | 'play' | 'clear' | 'move' | 'won' | 'lost'
 
 type Diff = {
-  name: string
-  hint: string
   color: string
   hp: number
-  up: number // множитель времени до выстрела врага
-  spare: (level: number) => number // запасные патроны на этап сверх целей
-  alive: number // сколько врагов сверх обычного одновременно
-  drones: [number, number] // с какого уровня и с какой вероятностью
-  miss: number // шанс, что пуля без зума уйдёт в сторону
-  settle: number // мс, за которые прицел в зуме успокаивается
-  sway: number // амплитуда покачивания прицела в зуме, клеток
-  mul: number // множитель очков
+  up: number // multiplier of the enemy's time to fire
+  spare: (level: number) => number // spare rounds per stage on top of the targets
+  alive: number // extra enemies alive at once
+  drones: [number, number] // from which level and how likely
+  miss: number // chance an unscoped shot drifts
+  settle: number // ms for the scope to settle
+  sway: number // scope sway amplitude, cells
+  mul: number // score multiplier
 }
 
 const DIFFS: Diff[] = [
-  { name: 'Легко', hint: '5 жизней, много патронов, враги медленные', color: '#7dff6b', hp: 5, up: 1.4, spare: l => Math.max(3, 6 - l), alive: -1, drones: [3, 0.12], miss: 0.35, settle: 150, sway: 0, mul: 0.5 },
-  { name: 'Нормально', hint: '3 жизни, запас патронов, без зума пуля гуляет', color: '#2ef2ff', hp: 3, up: 1, spare: l => Math.max(2, 4 - l), alive: 0, drones: [2, 0.18], miss: 0.6, settle: 250, sway: 0, mul: 1 },
-  { name: 'Сложно', hint: '2 жизни, 1 запасной патрон на этап, прицел качается', color: '#ffb02e', hp: 2, up: 0.75, spare: () => 1, alive: 1, drones: [1, 0.24], miss: 0.8, settle: 350, sway: 0.7, mul: 1.5 },
-  { name: 'Очень сложно', hint: '1 жизнь, патронов ровно по целям: промах = провал. Без зума не попасть', color: '#ff3d3d', hp: 1, up: 0.55, spare: () => 0, alive: 2, drones: [1, 0.3], miss: 1, settle: 450, sway: 1.3, mul: 2.5 },
+  { color: '#7dff6b', hp: 5, up: 1.4, spare: l => Math.max(3, 6 - l), alive: -1, drones: [3, 0.12], miss: 0.35, settle: 150, sway: 0, mul: 0.5 },
+  { color: '#2ef2ff', hp: 3, up: 1, spare: l => Math.max(2, 4 - l), alive: 0, drones: [2, 0.18], miss: 0.6, settle: 250, sway: 0, mul: 1 },
+  { color: '#ffb02e', hp: 2, up: 0.75, spare: () => 1, alive: 1, drones: [1, 0.24], miss: 0.8, settle: 350, sway: 0.7, mul: 1.5 },
+  { color: '#ff3d3d', hp: 1, up: 0.55, spare: () => 0, alive: 2, drones: [1, 0.3], miss: 1, settle: 450, sway: 1.3, mul: 2.5 },
 ]
 
 type Game = {
   W: number
   H: number
-  WW: number // ширина улицы в клетках: экран на этап
-  offX: number // поле по центру широкой панели
+  WW: number // street width in cells: one screen per stage
+  offX: number // the field is centred on a wide panel
   phase: Phase
   paused: boolean
   reason: string
@@ -135,8 +331,8 @@ type Game = {
   phaseT: number
   camX: number
   moveFrom: number
-  near: Layer // дома, тротуар, дорога; '' — прозрачно (небо)
-  far: Layer // дальний силуэт, едет медленнее
+  near: Layer // buildings, sidewalk, road; '' — transparent (sky)
+  far: Layer // far skyline, scrolls slower
   windows: Set<number>
   broken: Set<number>
   spawns: Spawn[]
@@ -156,40 +352,42 @@ type Game = {
   banner: string
   bannerColor: string
   bannerMs: number
-  sfx: string[] // звуки до ближайшего кадра
-  reloadAt: number // когда передёрнуть затвор, -1 — не надо
+  sfx: string[] // sounds until the next frame
+  reloadAt: number // when to cycle the bolt, -1 — no need
   sound: boolean
   music: boolean
-  sent: string // что последним ушло хукам про музыку
+  sent: string // the last music state sent to the hooks
   bestPending: number
+  lang: Lang
+  langPending: boolean // the language changed, tell the hooks
   saved: Save | null
-  savePending: Save | null | undefined // что отправить хукам; undefined — нечего
-  armed: boolean // идёт настоящая игра, а не заставка меню — можно сохранять
+  savePending: Save | null | undefined // what to send to the hooks; undefined — nothing
+  armed: boolean // a real game is on, not the menu backdrop — saving is allowed
   theme: Theme
-  wind: number // сдвиг пули по ветру, клеток
-  focus: number // заряд фокуса 0..1
-  focusT: number // сколько ещё длится фокус
+  wind: number // wind drift of the bullet, cells
+  focus: number // focus charge 0..1
+  focusT: number // how long focus still lasts
   thermal: boolean
-  battery: number // мс заряда тепловизора
+  battery: number // thermal battery, ms
   streak: number
   streakT: number
-  civT: number // когда выглянет следующий мирный житель
+  civT: number // when the next civilian looks out
   supply: Flyer | null
   supplyT: number
   ufo: Flyer | null
   ufoT: number
   moonHits: number
   moonDone: boolean
-  claude: Sign | null // неоновая вывеска CLAUDE
-  chart: Sign | null // окно с графиком
+  claude: Sign | null // the CLAUDE neon sign
+  chart: Sign | null // the window with a chart
   cat: { x: number; y: number; jumps: number } | null
-  keys: string[] // последние клавиши — для кода Konami
+  keys: string[] // recent keys, for the Konami code
   rainbow: boolean
 }
 
 type State = { g: Game; frame: number }
 
-// ---------- утилиты ----------
+// ---------- utils ----------
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
@@ -232,18 +430,19 @@ const put = (l: Layer, W: number, H: number, x: number, y: number, ch: string, f
 }
 
 const diffOf = (g: Game) => DIFFS[g.diff] ?? DIFFS[1]!
+const tx = (g: Game) => TEXTS[g.lang]
 
 const BLOOD = '#c0101c'
 const GORE = '#6e0810'
 
-// ---------- генерация улицы ----------
+// ---------- street generation ----------
 
 const FACADES = ['#3b2a35', '#2c3444', '#30283f', '#25333a', '#3a3030', '#2a2f3d']
 const NEON = ['#ff3df2', '#2ef2ff', '#ffe14d', '#7dff6b', '#ff7a3d']
 const SIGNS = ['RAMEN', '24/7', 'NEURO', 'VR', 'BAR', 'HOTEL', 'AI', 'TACO', 'CYBER', 'DOCS', 'CLUB', 'PAWN']
 const CAR_COLORS = ['#c0392b', '#2980b9', '#e5e5e5', '#f1c40f', '#16a085', '#8e44ad']
 
-// строка тротуара
+// sidewalk row
 const sidewalk = (g: Game) => g.H - 4
 
 const buildStreet = (g: Game) => {
@@ -264,11 +463,11 @@ const buildStreet = (g: Game) => {
   g.drips = []
   g.carRow = H - 2
 
-  // звёзды неподвижны, как и небо
+  // stars stay put, like the sky
   g.stars = []
   for (let i = 0; i < W / 3; i++) g.stars.push([ri(g, 0, W - 1), ri(g, 0, Math.floor(S / 2)), pick(g, ['#8890b0', '#c8d0ff', '#6a7090'])])
 
-  // дальний силуэт с редкими огнями
+  // far skyline with a few lights
   for (let x = 0; x < FW; ) {
     const w = ri(g, 3, 8)
     const top = ri(g, Math.floor(S * 0.2), Math.floor(S * 0.6))
@@ -277,13 +476,13 @@ const buildStreet = (g: Game) => {
     x += w
   }
 
-  // ближние дома
+  // near buildings
   const th = g.theme
   const doors: [number, number][] = []
   g.claude = null
   g.chart = null
   g.cat = null
-  const claudeAt = ri(g, 0, g.stages * 4) // на каком доме пасхальная вывеска
+  const claudeAt = ri(g, 0, g.stages * 4) // which building carries the easter-egg sign
   let nBld = 0
   let x = ri(g, 0, 2)
   while (x < WW - 8) {
@@ -328,7 +527,7 @@ const buildStreet = (g: Game) => {
     x += bw + ri(g, 1, 3)
   }
 
-  // тротуар и дорога
+  // sidewalk and road
   for (let xx = 0; xx < WW; xx++) {
     put(L, WW, H, xx, S, '▔', '#9aa0aa', '#4a4f5a')
     put(L, WW, H, xx, S + 1, xx % 8 < 4 ? '─' : ' ', '#c9a227', '#202329')
@@ -338,7 +537,7 @@ const buildStreet = (g: Game) => {
 
   const covered = (bx: number, w: number) => doors.some(([a, b]) => bx + w >= a && bx <= b)
 
-  // баррикады
+  // barricades
   const nb = Math.max(2, Math.floor(WW / 26))
   for (let i = 0, tries = 0; i < nb && tries < 200; tries++) {
     const bx = ri(g, 1, WW - 7)
@@ -354,7 +553,7 @@ const buildStreet = (g: Game) => {
     i++
   }
 
-  // машины рисуются поверх врагов, поэтому отдельно
+  // cars are drawn over enemies, so they are kept apart
   const nc = Math.max(2, Math.floor(WW / 28))
   for (let i = 0, tries = 0; i < nc && tries < 200; tries++) {
     const cx = ri(g, 1, WW - 10)
@@ -364,7 +563,7 @@ const buildStreet = (g: Game) => {
     i++
   }
 
-  // красные бочки у тротуара: взрываются
+  // red barrels by the sidewalk: they explode
   const nbar = Math.max(2, Math.floor(WW / 34))
   for (let i = 0, tries = 0; i < nbar && tries < 200; tries++) {
     const bx = ri(g, 2, WW - 4)
@@ -374,7 +573,7 @@ const buildStreet = (g: Game) => {
     i++
   }
 
-  // пасхалки: окно с графиком и кот на крыше
+  // easter eggs: a window with a chart and a cat on a roof
   const wins = g.spawns.filter(sp => sp.kind === 'window')
   const cw = wins.length ? pick(g, wins) : undefined
   if (cw) {
@@ -409,7 +608,7 @@ const drawCar = (l: Layer, g: Game, c: Car, x0: number) => {
   put(l, W, H, x0, y + 1, '▐', blink ? '#ff3030' : '#ff6060', c.color)
 }
 
-// ---------- уровни и этапы ----------
+// ---------- levels and stages ----------
 
 const newGame = (W: number, H: number, best: number, seed: number): Game => {
   const g = {
@@ -451,6 +650,8 @@ const newGame = (W: number, H: number, best: number, seed: number): Game => {
     music: true,
     sent: '',
     bestPending: -1,
+    lang: 'en',
+    langPending: false,
     saved: null,
     savePending: undefined,
     armed: false,
@@ -526,9 +727,9 @@ const startStage = (g: Game, stage: number) => {
   g.ufo = null
   g.ufoT = g.level >= 3 && rnd(g) < 0.4 ? ri(g, 3000, 20000) : 1e9
   if (g.armed) checkpoint(g, { level: g.level, stage, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: g.hp })
-  const news = stage === 0 ? NEWS[Math.min(g.level, 7)] : undefined
-  if (news && g.level <= 7) showBanner(g, `УРОВЕНЬ ${g.level} · НОВОЕ: ${news}`, '#7dff6b', 3500)
-  else showBanner(g, `УРОВЕНЬ ${g.level} · ЭТАП ${stage + 1}/${g.stages}`, '#ffe14d', 1500)
+  const news = stage === 0 ? tx(g).news[Math.min(g.level, 7)] : undefined
+  if (news && g.level <= 7) showBanner(g, tx(g).levelNew(g.level, news), '#7dff6b', 3500)
+  else showBanner(g, tx(g).levelStage(g.level, stage + 1, g.stages), '#ffe14d', 1500)
 }
 
 const showBanner = (g: Game, text: string, color: string, ms: number) => {
@@ -537,9 +738,9 @@ const showBanner = (g: Game, text: string, color: string, ms: number) => {
   g.bannerMs = ms
 }
 
-// ---------- логика ----------
+// ---------- logic ----------
 
-// куда реально смотрит ствол: в зуме на сложных уровнях прицел дышит
+// where the barrel really points: on hard levels the scope breathes
 const aim = (g: Game): [number, number] => {
   const amp = g.zoom ? diffOf(g).sway : 0
   const sx = amp * Math.sin(g.time / 650) * 2
@@ -547,7 +748,7 @@ const aim = (g: Game): [number, number] => {
   return [clamp(Math.round(g.ax + sx), 0, g.W - 1), clamp(Math.round(g.ay + sy), 0, g.H - 1)]
 }
 
-// клетки врага в мировых координатах; первая — голова
+// enemy cells in world coordinates; the first is the head
 const visibleCells = (e: Enemy): [number, number][] => {
   if (e.st === 'dead' || e.st === 'hidden') return []
   const x = Math.round(e.x)
@@ -599,7 +800,7 @@ const spawnEnemy = (g: Game) => {
   if (free.length === 0) return
   const i = pick(g, free)
   const s = g.spawns[i]!
-  // из двери враг может выбежать к ближайшей баррикаде — движущаяся цель
+  // from a door an enemy may run to the nearest barricade — a moving target
   if (s.kind === 'door' && rnd(g) < 0.6) {
     const ci = free.filter(k => g.spawns[k]!.kind === 'barrier').sort((a, b) => Math.abs(g.spawns[a]!.x - s.x) - Math.abs(g.spawns[b]!.x - s.x))[0]
     const cover = ci === undefined ? undefined : g.spawns[ci]
@@ -621,7 +822,7 @@ const spawnEnemy = (g: Game) => {
   g.enemies.push(e)
 }
 
-// мирный житель выглядывает из окна и прячется — стрелять в него нельзя
+// a civilian looks out of a window and hides — do not shoot
 const spawnCiv = (g: Game) => {
   const free = g.spawns.map((s, i) => i).filter(i => {
     const s = g.spawns[i]!
@@ -653,11 +854,11 @@ const finish = (g: Game, phase: Phase, reason: string) => {
   if (g.score > g.best) g.best = g.score
   g.bestPending = g.score
   g.sfx.push(phase === 'won' ? 'win' : 'lose')
-  // уровень пройден — следующий начнём отсюда
+  // level complete — the next one starts from here
   if (phase === 'won') checkpoint(g, { level: g.level + 1, stage: 0, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: diffOf(g).hp })
 }
 
-// брызги разлетаются и оседают кровью на стенах и тротуаре
+// blood spray flies out and falls
 const splash = (g: Game, x: number, y: number, n: number, power: number, gore = false) => {
   for (let k = 0; k < n; k++) {
     const a = rnd(g) * Math.PI * 2
@@ -678,7 +879,7 @@ const splash = (g: Game, x: number, y: number, n: number, power: number, gore = 
 const decal = (g: Game, x: number, y: number, d: Decal) => {
   if (x < 0 || y < 0 || x >= g.WW || y >= g.H) return
   const i = y * g.WW + x
-  if (g.near.ch[i] === '') return // в небо кровь не прилипает
+  if (g.near.ch[i] === '') return // blood does not stick to the sky
   g.decals.set(i, d)
 }
 
@@ -718,7 +919,7 @@ const tickEnemy = (g: Game, e: Enemy, dt: number) => {
     case 'sink':
       if (e.t < 240) break
       if (e.kind === 'barrier' || e.kind === 'car' || e.kind === 'runner') {
-        // прячется за укрытием и высунется снова
+        // hides behind cover and will pop up again
         e.st = 'hidden'
         e.t = 0
         e.aimMs = g.upMs + ri(g, -200, 400)
@@ -737,7 +938,7 @@ const tickEnemy = (g: Game, e: Enemy, dt: number) => {
     case 'run':
       e.x += (e.vx * dt) / 1000
       if ((e.vx > 0 && e.x >= e.tx) || (e.vx < 0 && e.x <= e.tx) || e.vx === 0) {
-        // добежал до баррикады — теперь прячется за ней
+        // reached the barricade — now hides behind it
         const s = g.spawns[e.spawn]
         e.x = e.tx
         if (s) {
@@ -760,7 +961,7 @@ const tickEnemy = (g: Game, e: Enemy, dt: number) => {
   }
 }
 
-// тела не исчезают: лужи растут, с крыши падают вниз
+// bodies stay: pools grow, rooftop bodies fall down
 const tickCorpse = (g: Game, e: Enemy, dt: number) => {
   if (e.dead > 1e8) return
   e.dead += dt
@@ -784,7 +985,7 @@ const tickCorpse = (g: Game, e: Enemy, dt: number) => {
     return
   }
   if (e.pose === 'lie' && e.pool < 5 && e.dead > 300 + e.pool * 350) {
-    // лужа расползается по строке под телом
+    // the pool spreads along the row under the body
     const row = Math.min(g.H - 1, Math.round(e.y) + 1)
     const k = e.pool
     for (const dx of [-k, k]) {
@@ -795,7 +996,7 @@ const tickCorpse = (g: Game, e: Enemy, dt: number) => {
   }
 }
 
-// фокус копится от убийств, серия быстрых убийств даёт бонус
+// kills charge focus, a quick kill streak gives a bonus
 const onKill = (g: Game) => {
   if (g.level >= 2) g.focus = Math.min(1, g.focus + 0.34)
   g.streak = g.time - g.streakT < 2500 ? g.streak + 1 : 1
@@ -818,7 +1019,7 @@ const kill = (g: Game, e: Enemy, head: boolean, blast = false) => {
   const s = g.spawns[e.spawn]
   if (s) {
     s.busy = false
-    if (e.kind === 'window') s.used = true // тело осталось в окне
+    if (e.kind === 'window') s.used = true // the body stays in the window
   }
   if (e.kind === 'drone') {
     e.pose = 'wreck'
@@ -831,7 +1032,7 @@ const kill = (g: Game, e: Enemy, head: boolean, blast = false) => {
   splash(g, x, head ? y : y + 1, head ? 22 : blast ? 26 : 14, head ? 1.4 : 1, head)
   if (e.kind === 'window') {
     e.pose = 'hang'
-    // стекло окна темнеет от крови, из-под подоконника стекает пара струек
+    // the glass darkens with blood, a couple of drips run from the sill
     for (let dx = -1; dx <= 1; dx++)
       for (let dy = 0; dy < 2; dy++) {
         const i = (y + dy) * g.WW + x + dx
@@ -847,7 +1048,7 @@ const kill = (g: Game, e: Enemy, head: boolean, blast = false) => {
   }
 }
 
-// последний враг этапа — замедление
+// last enemy of the stage — slow motion
 const afterKill = (g: Game) => {
   if (g.killed >= g.toKill && !g.enemies.some(e => e.st !== 'dead' && !e.civ)) {
     g.slow = 900
@@ -907,13 +1108,13 @@ const tick = (g: Game, realDt: number) => {
   if (g.tracer && (g.tracer.ms -= dt) <= 0) g.tracer = null
   for (const c of g.cars) c.alarm = Math.max(0, c.alarm - dt)
 
-  // капли крови падают и исчезают у тротуара
+  // blood drops fall and vanish at the sidewalk
   const ground = sidewalk(g)
   const keep: Part[] = []
   for (const p of g.parts) {
     p.life -= dt
     p.vy += ((p.stick ? 45 : 30) * dt) / 1000
-    if (p.stick) p.vx *= 0.88 // капля быстро теряет разлёт и падает почти отвесно
+    if (p.stick) p.vx *= 0.88 // a drop quickly loses its spread and falls almost straight
     p.x += (p.vx * dt) / 1000
     p.y += (p.vy * dt) / 1000
     if (p.stick ? p.y < ground - 0.5 : p.life > 0) keep.push(p)
@@ -944,7 +1145,7 @@ const tick = (g: Game, realDt: number) => {
   }
 
   if (g.phase === 'move') {
-    // камера сама едет к следующей позиции
+    // the camera moves to the next position by itself
     g.phaseT += dt
     const k = clamp(g.phaseT / 1800, 0, 1)
     const ease = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
@@ -957,13 +1158,13 @@ const tick = (g: Game, realDt: number) => {
     if (g.phaseT < 1500) return
     if (g.stage + 1 >= g.stages) {
       g.score += g.hp * 100
-      finish(g, 'won', `Улица чиста. Бонус за жизни: ${g.hp} × 100`)
+      finish(g, 'won', tx(g).streetClear(g.hp))
       return
     }
     g.phase = 'move'
     g.phaseT = 0
     g.moveFrom = g.camX
-    showBanner(g, 'ПЕРЕБЕЖКА →', '#2ef2ff', 99999)
+    showBanner(g, tx(g).moving, '#2ef2ff', 99999)
     g.sfx.push('move')
     return
   }
@@ -976,7 +1177,7 @@ const tick = (g: Game, realDt: number) => {
 
   for (const e of g.enemies) if (e.st !== 'dead') tickEnemy(g, e, dt)
   g.enemies = g.enemies.filter(e => e.dead < 1e8)
-  if (g.hp <= 0) return finish(g, 'lost', 'Тебя подстрелили')
+  if (g.hp <= 0) return finish(g, 'lost', tx(g).shot)
 
   const alive = g.enemies.filter(e => e.st !== 'dead' && !e.civ).length
   if (g.level >= 3) {
@@ -986,7 +1187,7 @@ const tick = (g: Game, realDt: number) => {
       g.civT = 4000 + ri(g, 0, 4000)
     }
   }
-  // дрон снабжения и НЛО летят по небу в экранных координатах
+  // the supply drone and the UFO fly in screen coordinates
   if (g.level >= 4 && !g.supply && (g.supplyT -= dt) <= 0) {
     const dir = rnd(g) < 0.5 ? 1 : -1
     g.supply = { x: dir > 0 ? -3 : g.W + 3, y: ri(g, 2, 4), vx: dir * 9 }
@@ -1012,21 +1213,21 @@ const tick = (g: Game, realDt: number) => {
     g.phase = 'clear'
     g.phaseT = 0
     g.zoom = false
-    showBanner(g, `ЭТАП ${g.stage + 1}/${g.stages} ЗАЧИЩЕН · патроны +${bonus}`, '#7dff6b', 1500)
+    showBanner(g, tx(g).stageClear(g.stage + 1, g.stages, bonus), '#7dff6b', 1500)
     return
   }
   if (g.ammo === 0 && g.killed < g.toKill && !g.barrels.some(b => b.alive && b.fuse >= 0)) {
     g.outOfAmmoT += dt
-    if (g.outOfAmmoT > 600) return finish(g, 'lost', 'Кончились патроны')
+    if (g.outOfAmmoT > 600) return finish(g, 'lost', tx(g).noAmmo)
   }
 }
 
 const shoot = (g: Game) => {
   if (g.phase !== 'play') return
-  if (g.cooldown > 0) return addFx(g, Math.round(g.ax) + 2, Math.round(g.ay) - 1, 'перезарядка', '#aaaaaa', 300)
+  if (g.cooldown > 0) return addFx(g, Math.round(g.ax) + 2, Math.round(g.ay) - 1, tx(g).reloading, '#aaaaaa', 300)
   if (g.ammo <= 0) {
     g.sfx.push('empty')
-    return addFx(g, Math.round(g.ax) + 2, Math.round(g.ay) - 1, 'пусто', '#ff5050', 400)
+    return addFx(g, Math.round(g.ax) + 2, Math.round(g.ay) - 1, tx(g).empty, '#ff5050', 400)
   }
   const d = diffOf(g)
   const steady = g.zoom && g.zoomT >= d.settle
@@ -1038,10 +1239,10 @@ const shoot = (g: Game) => {
   g.kick = 1
   g.sfx.push('shot')
   g.reloadAt = g.time + 260
-  // затвор передёргивается — оптика слетает
+  // the bolt cycles — the scope drops
   g.zoom = false
 
-  // без зума пуля уходит в сторону, в устоявшемся прицеле летит точно
+  // unscoped shots drift, a settled scope is exact
   let dx = 0
   let dy = 0
   if (!steady && Math.random() < d.miss) {
@@ -1049,7 +1250,7 @@ const shoot = (g: Game) => {
     const q = Math.random()
     dy = q < 0.25 ? -1 : q > 0.75 ? 1 : 0
   }
-  const hx = clamp(bx + dx + g.wind, 0, g.W - 1) // ветер сносит пулю
+  const hx = clamp(bx + dx + g.wind, 0, g.W - 1) // the wind pushes the bullet
   const hy = clamp(by + dy, 0, g.H - 1)
   const wx = hx + g.camX
   g.tracer = { x: hx, y: hy, ms: 80 }
@@ -1064,15 +1265,15 @@ const shoot = (g: Game) => {
       g.combo = 0
       g.hurt = 400
       g.sfx.push('hurt')
-      showBanner(g, 'ЗАЛОЖНИК! −300', '#ff4040', 1500)
+      showBanner(g, tx(g).hostage, '#ff4040', 1500)
       return
     }
     if (head && e.helmet) {
-      // каска выдержала: слетает, враг дёргается и стреляет быстрее
+      // the helmet held: it flies off, the enemy flinches and fires sooner
       e.helmet = false
       g.hits += 1
       g.sfx.push('ricochet')
-      addFx(g, hx + 1, hy, 'ДЗЫНЬ!', '#c8d0dc', 600, true)
+      addFx(g, hx + 1, hy, tx(g).clang, '#c8d0dc', 600, true)
       for (let q = 0; q < 6; q++) g.parts.push({ x: wx + 0.5, y: hy + 0.5, vx: (rnd(g) - 0.5) * 20, vy: -rnd(g) * 6, life: 250, ch: '·', fg: '#ffe9a0', stick: false })
       e.t = Math.max(e.t, e.aimMs - 900)
       return
@@ -1083,7 +1284,7 @@ const shoot = (g: Game) => {
     const pts = Math.round((100 + (head ? 50 : 0) + (moving ? 75 : 0)) * Math.min(5, g.combo) * d.mul)
     g.score += pts
     kill(g, e, head)
-    addFx(g, hx + 1, hy, `+${pts}${head ? ' HEADSHOT' : moving ? ' НА ХОДУ' : ''}${g.combo > 1 ? ` x${Math.min(5, g.combo)}` : ''}`, head ? '#ffe14d' : '#7dff6b', 900, true)
+    addFx(g, hx + 1, hy, `+${pts}${head ? ' HEADSHOT' : moving ? tx(g).onTheMove : ''}${g.combo > 1 ? ` x${Math.min(5, g.combo)}` : ''}`, head ? '#ffe14d' : '#7dff6b', 900, true)
     afterKill(g)
     return
   }
@@ -1108,11 +1309,11 @@ const shoot = (g: Game) => {
       g.sfx.push('alarm')
     }
   addFx(g, hx, hy, '*', '#ffffff', 260)
-  // враг рядом слышит выстрел и целится быстрее
+  // nearby enemies hear the shot and aim faster
   for (const e of g.enemies) if (e.st !== 'dead' && Math.abs(e.x - wx) <= 3 && Math.abs(e.y - hy) <= 3) e.t = Math.max(e.t, e.aimMs - 900)
 }
 
-// Дрон снабжения, НЛО и пасхалки. true — пуля во что-то попала.
+// Supply drone, UFO and easter eggs. true — the bullet hit something.
 const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
   const d = diffOf(g)
   const sp = g.supply
@@ -1121,10 +1322,10 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
     g.sfx.push('pickup')
     if (g.hp < d.hp) {
       g.hp += 1
-      addFx(g, hx + 1, hy, '+1 ЖИЗНЬ', '#ff4d6d', 1000, true)
+      addFx(g, hx + 1, hy, tx(g).plusLife, '#ff4d6d', 1000, true)
     } else {
       g.ammo += 3
-      addFx(g, hx + 1, hy, '+3 ПАТРОНА', '#ffe14d', 1000, true)
+      addFx(g, hx + 1, hy, tx(g).plusAmmo, '#ffe14d', 1000, true)
     }
     return true
   }
@@ -1133,11 +1334,11 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
     g.ufo = null
     g.score += 2500
     g.sfx.push('boom')
-    showBanner(g, 'НЛО СБИТО! · X-FILES +2500', '#7dff6b', 2000)
+    showBanner(g, tx(g).ufo, '#7dff6b', 2000)
     for (let q = 0; q < 16; q++) g.parts.push({ x: wx + 0.5, y: hy + 0.5, vx: (rnd(g) - 0.5) * 30, vy: -rnd(g) * 6, life: 600, ch: pick(g, ['*', '+', '·']), fg: '#7dff6b', stick: false })
     return true
   }
-  // луна видна только там, где небо
+  // the moon is visible only over the sky
   const moonX = g.W - 9
   if (!g.moonDone && hy === 1 && Math.abs(hx - moonX) <= 1 && g.near.ch[g.WW + moonX + g.camX] === '') {
     g.moonHits++
@@ -1145,8 +1346,8 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
     if (g.moonHits >= 3) {
       g.moonDone = true
       g.score += 1000
-      showBanner(g, 'ЛУННЫЙ СНАЙПЕР · +1000', '#f5ecc8', 2000)
-    } else addFx(g, hx + 1, hy, `луна ${g.moonHits}/3`, '#f5ecc8', 600)
+      showBanner(g, tx(g).moonSniper, '#f5ecc8', 2000)
+    } else addFx(g, hx + 1, hy, tx(g).moon(g.moonHits), '#f5ecc8', 600)
     return true
   }
   const c = g.claude
@@ -1154,7 +1355,7 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
     c.hit = true
     g.score += 42
     g.sfx.push('glass')
-    showBanner(g, 'CLAUDE: «Эй, я тут вообще-то думаю!» · +42', '#d97757', 2500)
+    showBanner(g, tx(g).claude, '#d97757', 2500)
     return true
   }
   const ch = g.chart
@@ -1162,19 +1363,19 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
     ch.hit = true
     g.score += 500
     g.sfx.push('glass')
-    showBanner(g, 'СТОП-ЛОСС СРАБОТАЛ · +500', '#ef5350', 2000)
+    showBanner(g, tx(g).stopLoss, '#ef5350', 2000)
     return true
   }
   const cat = g.cat
   if (cat && hy === cat.y && Math.abs(wx - cat.x) <= 1) {
-    // кота не задеть: он просто перепрыгивает на другую крышу
+    // the cat cannot be hurt: it just jumps to another roof
     cat.jumps++
     g.sfx.push('meow')
-    addFx(g, hx - 1, hy - 1, 'МЯУ!', '#ffb347', 900, true)
+    addFx(g, hx - 1, hy - 1, tx(g).meow, '#ffb347', 900, true)
     const roofs = g.spawns.filter(r => r.kind === 'roof' && Math.abs(r.x + 2 - cat.x) > 4)
     if (cat.jumps >= 3 || !roofs.length) {
       g.cat = null
-      addFx(g, hx - 3, hy, 'кот ушёл спать', '#ffb347', 1400)
+      addFx(g, hx - 3, hy, tx(g).catSleeps, '#ffb347', 1400)
     } else {
       const r = pick(g, roofs)
       cat.x = r.x + 2
@@ -1185,9 +1386,9 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
   return false
 }
 
-// ---------- отрисовка ----------
+// ---------- drawing ----------
 
-// hot — клетки целей на экране, heat — тепло для тепловизора (2 живые, 1 остывающие)
+// hot — target cells on screen, heat — warmth for thermal (2 alive, 1 cooling)
 type Scene = Layer & { hot: Set<number>; heat: Map<number, number> }
 
 const drawScene = (g: Game): Scene => {
@@ -1201,7 +1402,7 @@ const drawScene = (g: Game): Scene => {
     if (x >= 0 && y >= 0 && x < W && y < H) l.heat.set(y * W + x, h)
   }
 
-  // небо и луна неподвижны, дальний силуэт едет медленнее улицы
+  // sky and moon stay put, the far skyline scrolls slower than the street
   const farX = Math.floor(cam * 0.4)
   const FW = Math.ceil(g.WW * 0.4) + W
   for (let y = 0; y < H; y++) {
@@ -1242,7 +1443,7 @@ const drawScene = (g: Game): Scene => {
   for (const [x, y, c] of g.stars) if (l.ch[y * W + x] === ' ' && l.bg[y * W + x] !== '#141a2e') put(l, W, H, x, y, '·', c)
   if (l.ch[W + W - 9] === ' ') put(l, W, H, W - 9, 1, g.moonDone ? '◐' : '●', '#f5ecc8')
 
-  // пасхалки: вывеска CLAUDE гаснет после попадания, окно с графиком, кот
+  // easter eggs: the CLAUDE sign goes dark when hit, the chart window, the cat
   const c = g.claude
   if (c?.hit && Math.floor(g.time / 700) % 5 !== 0) for (let i = 0; i < c.len; i++) put(l, W, H, c.x + i - cam, c.y, l.ch[c.y * W + c.x + i - cam] ?? ' ', '#3a2620')
   const ch = g.chart
@@ -1261,7 +1462,7 @@ const drawScene = (g: Game): Scene => {
     for (let dx = -1; dx <= 1; dx++) warm(x + dx, g.cat.y, 1.5)
   }
 
-  // бочки
+  // barrels
   for (const b of g.barrels) {
     if (!b.alive) continue
     const x = b.x - cam
@@ -1272,7 +1473,7 @@ const drawScene = (g: Game): Scene => {
     put(l, W, H, x + 1, S - 1, '☰', '#ffe14d', '#c8341e')
   }
 
-  // враги и тела
+  // enemies and bodies
   for (const e of g.enemies) {
     if (e.dead > 1e8) continue
     const x = Math.round(e.x) - cam
@@ -1293,7 +1494,7 @@ const drawScene = (g: Game): Scene => {
       continue
     }
     if (e.st === 'hidden') {
-      // за укрытием его видно только в тепловизор
+      // behind cover it shows only on thermal
       if (g.thermal) for (let r = 0; r < e.rows; r++) {
         put(l, W, H, x, y + r, '░', '#ffffff')
         warm(x, y + r, 1.5)
@@ -1303,7 +1504,7 @@ const drawScene = (g: Game): Scene => {
     if (e.st === 'dead') {
       if (e.dead < 8000) for (const dx of [-1, 0, 1]) warm(x + dx, e.pose === 'hang' ? y + 1 : y, 1)
       if (e.pose === 'hang') {
-        // перевесился через подоконник
+        // slumped over the windowsill
         put(l, W, H, x, y + 1, '●', '#c9956a')
         put(l, W, H, x - 1, y + 1, '▀', '#8a1a14')
         put(l, W, H, x + 1, y + 1, '▀', '#8a1a14')
@@ -1311,7 +1512,7 @@ const drawScene = (g: Game): Scene => {
         put(l, W, H, x, y, '●', '#f1c27d')
         put(l, W, H, x, y + 1, '▓', '#b3261e')
       } else {
-        // лежит на земле
+        // lying on the ground
         put(l, W, H, x - 1, y, '●', '#c9956a')
         put(l, W, H, x, y, '▬', '#8a1a14')
         put(l, W, H, x + 1, y, '▬', '#3a3a44')
@@ -1328,12 +1529,12 @@ const drawScene = (g: Game): Scene => {
       warm(cx, cy, 2)
     })
     if (danger && blink) put(l, W, H, x, y - 1, '!', '#ff3030')
-    // снайпер выдаёт себя бликом оптики
+    // a sniper gives itself away with a scope glint
     if (e.sniper && e.st === 'aim' && Math.floor(g.time / 250) % 3 === 0) put(l, W, H, x + 1, y, '✦', '#ffffff')
   }
   for (const c of g.cars) if (c.x - cam > -10 && c.x - cam < W) drawCar(l, g, c, c.x - cam)
 
-  // дрон снабжения с ящиком и НЛО
+  // the supply drone with a crate, and the UFO
   if (g.supply) {
     const x = Math.round(g.supply.x)
     const y = g.supply.y
@@ -1347,10 +1548,10 @@ const drawScene = (g: Game): Scene => {
     '-=●=-'.split('').forEach((c2, i) => put(l, W, H, x - 2 + i, g.ufo!.y, c2, c2 === '●' ? (blink ? '#ffffff' : '#7dff6b') : '#7dff6b'))
   }
 
-  // частицы
+  // particles
   for (const p of g.parts) put(l, W, H, Math.round(p.x) - cam, Math.round(p.y), p.ch, p.fg)
 
-  // дождь и снег
+  // rain and snow
   if (g.theme.rain || g.theme.snow) {
     const n = Math.floor((W * H) / 70)
     const t = g.time / 1000
@@ -1366,7 +1567,7 @@ const drawScene = (g: Game): Scene => {
     }
   }
 
-  // целящийся враг выставляет ствол; перед выстрелом ствол вспыхивает
+  // an aiming enemy shows its barrel; it flashes right before the shot
   if (g.phase === 'play')
     for (const e of g.enemies) {
       if (e.st !== 'aim' || e.kind === 'drone') continue
@@ -1381,8 +1582,8 @@ const drawScene = (g: Game): Scene => {
   return l
 }
 
-// Перекрестие с пустым центром. Клетки врагов оно не трогает, только
-// подкрашивает фон под центром, чтобы цель под прицелом оставалась видна.
+// Crosshair with a hollow centre. It leaves enemy cells alone and only
+// tints the background under the centre, so the target stays visible.
 const crosshair = (l: Scene, W: number, H: number, cx: number, cy: number, color: string, arm: number, gap: number) => {
   const line = (x: number, y: number, ch: string) => {
     if (x < 0 || y < 0 || x >= W || y >= H || l.hot.has(y * W + x)) return
@@ -1402,11 +1603,11 @@ const crosshair = (l: Scene, W: number, H: number, cx: number, cy: number, color
   else put(l, W, H, cx, cy, '·', color)
 }
 
-// символы, которые в зуме можно повторять: линии и блоки стыкуются
+// glyphs safe to repeat when zoomed: lines and blocks tile
 const TILE = new Set(['─', '│', '▀', '▄', '▔', '▁', '▒', '▆', '█', '╳', '╾', '╼', '┃', '▓', '░', '☰', '▬'])
-// символы-фигуры: в зуме заливаются цветом целиком
+// shape glyphs: filled with solid colour when zoomed
 const SOLID = new Set(['◆', 'Λ', 'ʌ'])
-// голова, луна, колёса в зуме: верх ▟▙, низ ▜▛
+// head, moon, wheels when zoomed: top ▟▙, bottom ▜▛
 const ROUND = ['▟', '▙', '▜', '▛']
 
 const view = (g: Game): Scene => {
@@ -1416,7 +1617,7 @@ const view = (g: Game): Scene => {
   const [ax, ay] = aim(g)
   const tint = g.rainbow ? NEON[Math.floor(g.time / 90) % NEON.length]! : ''
   if (g.tracer && g.phase === 'play') {
-    // трассер от снайпера к точке попадания
+    // tracer from the sniper to the impact point
     const sx = Math.floor(W / 2)
     const sy = H - 1
     const n = Math.max(Math.abs(g.tracer.x - sx), Math.abs(g.tracer.y - sy), 1)
@@ -1431,7 +1632,7 @@ const view = (g: Game): Scene => {
     return scene
   }
 
-  // линза прицела 2× следует за курсором, всё вокруг тонет в темноте
+  // the 2× scope lens follows the cursor, the rest goes dark
   const out: Scene = { ...layer(W, H), hot: new Set(), heat: new Map() }
   const ry = Math.max(4, Math.min(8, Math.floor(H / 3)))
   const rx = ry * 2
@@ -1455,11 +1656,11 @@ const view = (g: Game): Scene => {
         out.fg[i] = scene.fg[j]!
         out.bg[i] = scene.bg[j]!
         if (ch === '●') {
-          // круг из четвертинок: 2×2 клетки — это 4×4 мини-пикселя
+          // a circle of quarter blocks: 2×2 cells are 4×4 mini pixels
           out.ch[i] = ROUND[((y - ay + kick) & 1) * 2 + ((x - ax) & 1)]!
           if (scene.hot.has(j)) out.hot.add(i)
         } else if (scene.hot.has(j) || SOLID.has(ch)) {
-          // фигуру врага растягиваем сплошным цветом, а не копиями символа
+          // stretch the enemy figure as solid colour, not copies of the glyph
           out.ch[i] = ' '
           out.bg[i] = scene.fg[j]!
           if (scene.hot.has(j)) out.hot.add(i)
@@ -1476,12 +1677,12 @@ const view = (g: Game): Scene => {
     }
   const steady = g.zoomT >= diffOf(g).settle
   crosshair(out, W, H, ax, ay, tint || (steady ? '#ff2020' : '#aa5050'), rx - 3, 2)
-  // баллистический вычислитель: куда реально ляжет пуля с учётом ветра
+  // ballistic computer: where the bullet really lands with the wind
   if (g.wind) put(out, W, H, ax + g.wind * 2, ay, '•', '#ffe14d')
   return out
 }
 
-// Тепловизор: всё холодное — в три оттенка синего, тёплое горит жёлтым
+// Thermal: everything cold in three shades of blue, warm things glow yellow
 const lumCache = new Map<string, number>()
 const lum = (c: string) => {
   let v = lumCache.get(c)
@@ -1520,34 +1721,32 @@ const overlay = (g: Game, l: Layer) => {
   if (g.phase === 'intro') {
     lines.push(['◎  SNIPER 2026  ◎', '#2ef2ff'])
     lines.push(['', ''])
-    lines.push(['Улица из нескольких этапов. Зачистил позицию —', '#e0e0e0'])
-    lines.push(['снайпер сам переходит к следующей.', '#e0e0e0'])
-    lines.push(['Мигающий «!» — враг сейчас выстрелит. Бочки взрываются.', '#e0e0e0'])
-    lines.push(['С каждым уровнем новое: каски, заложники, снайперы, ветер…', '#e0e0e0'])
-    lines.push(['Без зума пуля гуляет. После выстрела оптика слетает.', '#e0e0e0'])
+    const t = tx(g)
+    for (const line of t.intro) lines.push([line, '#e0e0e0'])
     lines.push(['', ''])
-    lines.push(['Сложность (1–4, стрелки, клик по строке):', '#aab0c0'])
-    DIFFS.forEach((d, i) => lines.push([`${i === g.diff ? '▶' : ' '} ${i + 1}. ${d.name.padEnd(13)}`, i === g.diff ? d.color : '#7d8590']))
-    lines.push([diffOf(g).hint, diffOf(g).color])
+    lines.push([t.difficulty, '#aab0c0'])
+    DIFFS.forEach((d, i) => lines.push([`${i === g.diff ? '▶' : ' '} ${i + 1}. ${t.diffs[i]!.name.padEnd(13)}`, i === g.diff ? d.color : '#7d8590']))
+    lines.push([t.diffs[g.diff]!.hint, diffOf(g).color])
     lines.push(['', ''])
-    lines.push(['Пробел или клик — начать', '#ffe14d'])
+    lines.push([t.start, '#ffe14d'])
     const sv = g.saved
-    if (sv) lines.push([`C — продолжить: уровень ${sv.level}, этап ${sv.stage + 1}, счёт ${sv.score}`, '#7dff6b'])
+    if (sv) lines.push([t.resume(sv), '#7dff6b'])
+    lines.push([t.lang, '#9ad1ff'])
   } else if (g.phase === 'won') {
-    lines.push([`УРОВЕНЬ ${g.level} ПРОЙДЕН`, '#7dff6b'])
+    lines.push([tx(g).levelDone(g.level), '#7dff6b'])
     lines.push([g.reason, '#e0e0e0'])
-    lines.push([`Счёт ${g.score} · точность ${acc(g)}%`, '#e0e0e0'])
+    lines.push([tx(g).scoreAcc(g.score, acc(g)), '#e0e0e0'])
     lines.push(['', ''])
-    lines.push(['Клик или N — следующий уровень · M — сложность', '#ffe14d'])
+    lines.push([tx(g).nextHint, '#ffe14d'])
   } else if (g.phase === 'lost') {
-    lines.push(['МИССИЯ ПРОВАЛЕНА', '#ff4040'])
+    lines.push([tx(g).failed, '#ff4040'])
     lines.push([g.reason, '#e0e0e0'])
-    lines.push([`Уровень ${g.level} · этап ${g.stage + 1}/${g.stages} · счёт ${g.score} · рекорд ${g.best}`, '#e0e0e0'])
+    lines.push([tx(g).failedStats(g.level, g.stage + 1, g.stages, g.score, g.best), '#e0e0e0'])
     lines.push(['', ''])
-    lines.push([g.saved ? 'Клик или R — заново · C — с начала этапа · M — сложность' : 'Клик или R — заново · M — сложность', '#ffe14d'])
+    lines.push([tx(g).failedHint(!!g.saved), '#ffe14d'])
   } else if (g.paused) {
-    lines.push(['ПАУЗА', '#ffe14d'])
-    lines.push(['P — продолжить', '#e0e0e0'])
+    lines.push([tx(g).paused, '#ffe14d'])
+    lines.push([tx(g).pauseHint, '#e0e0e0'])
   } else {
     if (g.bannerMs > 0 && g.banner) centerText(l, W, H, 1, ` ${g.banner} `, g.bannerColor, '#0d0f1a')
     return
@@ -1557,11 +1756,11 @@ const overlay = (g: Game, l: Layer) => {
   const x0 = Math.floor((W - w) / 2)
   for (let y = y0; y < y0 + lines.length + 2; y++) for (let x = x0; x < x0 + w; x++) put(l, W, H, x, y, ' ', '#ffffff', '#0d0f1a')
   lines.forEach(([t, c], i) => centerText(l, W, H, y0 + 1 + i, t, c, '#0d0f1a'))
-  // строка первого пункта меню — по ней клик выбирает сложность
+  // row of the first menu item — a click there picks the difficulty
   if (g.phase === 'intro') g.menuY = y0 + 1 + 9
 }
 
-// ---------- строки для дерева ----------
+// ---------- rows for the tree ----------
 
 type Span = { text: string; fg: string; bg: string }
 type Item = { text: string; fg?: string; bg?: string }
@@ -1582,7 +1781,7 @@ const rowSpans = (l: Layer, W: number, y: number): Span[] => {
   return spans
 }
 
-// цвета строки — самые частые; совпадающие полоски становятся простым текстом
+// row colours are the most frequent ones; matching spans become plain text
 const toRow = (spans: Span[]): Row => {
   const bgs = new Map<string, number>()
   for (const s of spans) bgs.set(s.bg, (bgs.get(s.bg) ?? 0) + 1)
@@ -1600,33 +1799,34 @@ const toRow = (spans: Span[]): Row => {
   return { fg, bg, items }
 }
 
-// сколько примерно займёт строка в сериализованном дереве
+// rough size of a row in the serialized tree
 const rowCost = (r: Row) => r.items.reduce((n, it) => n + it.text.length + (it.fg || it.bg ? 42 + (it.fg ? 22 : 0) + (it.bg ? 30 : 0) : 4), 110)
 
-const ZOOM_W = 16 // ширина кнопки зума в HUD
+const ZOOM_W = 16 // width of the zoom button in the HUD
 
 const hud = (g: Game): Span[] => {
   const bg = g.hurt > 0 ? '#5a0d0d' : '#0d0f1a'
   const d = diffOf(g)
+  const t = tx(g)
   const hearts = '♥'.repeat(Math.max(0, g.hp)) + '♡'.repeat(Math.max(0, d.hp - g.hp))
   const ammo = g.ammo <= 12 ? '▮'.repeat(g.ammo) : `▮×${g.ammo}`
   const parts: [string, string][] = [
     [' ◎ SNIPER ', '#2ef2ff'],
-    [`│ ${d.name} `, d.color],
-    [`│ ур.${g.level} этап ${g.stage + 1}/${g.stages} `, '#aab0c0'],
-    [`│ цели ${g.killed}/${g.toKill} `, '#e0e0e0'],
-    ['│ патроны ', '#aab0c0'],
+    [`│ ${t.diffs[g.diff]!.name} `, d.color],
+    [t.hudLevel(g.level, g.stage + 1, g.stages), '#aab0c0'],
+    [t.hudTargets(g.killed, g.toKill), '#e0e0e0'],
+    [t.hudAmmo, '#aab0c0'],
     [ammo || '—', g.ammo <= 2 ? '#ff5050' : '#ffe14d'],
     [' │ ', '#aab0c0'],
     [hearts, '#ff4d6d'],
-    [g.level >= 2 ? ` │ ${g.focusT > 0 ? 'ФОКУС!' : g.focus >= 1 ? 'фокус [C]' : `фокус ${'▮'.repeat(Math.floor(g.focus * 3))}${'▯'.repeat(3 - Math.floor(g.focus * 3))}`}` : '', g.focus >= 1 || g.focusT > 0 ? '#2ef2ff' : '#5a7a8a'],
-    [g.level >= 3 ? ` │ тепло [T] ${'▮'.repeat(Math.ceil(g.battery / 1250))}` : '', g.thermal ? '#ffb02e' : '#8a6a4a'],
-    [g.wind ? ` │ ветер ${g.wind < 0 ? '←'.repeat(-g.wind) : '→'.repeat(g.wind)}` : '', '#9ad1ff'],
-    [` │ счёт ${g.score} `, '#e0e0e0'],
-    [`│ рекорд ${g.best} `, '#7d8590'],
-    [g.cooldown > 0 && g.phase === 'play' ? '│ перезарядка ' : '', '#ffb02e'],
+    [g.level >= 2 ? ` │ ${g.focusT > 0 ? t.hudFocusOn : g.focus >= 1 ? t.hudFocusReady : `${t.hudFocus} ${'▮'.repeat(Math.floor(g.focus * 3))}${'▯'.repeat(3 - Math.floor(g.focus * 3))}`}` : '', g.focus >= 1 || g.focusT > 0 ? '#2ef2ff' : '#5a7a8a'],
+    [g.level >= 3 ? ` │ ${t.hudHeat} ${'▮'.repeat(Math.ceil(g.battery / 1250))}` : '', g.thermal ? '#ffb02e' : '#8a6a4a'],
+    [g.wind ? ` │ ${t.hudWind} ${g.wind < 0 ? '←'.repeat(-g.wind) : '→'.repeat(g.wind)}` : '', '#9ad1ff'],
+    [t.hudScore(g.score), '#e0e0e0'],
+    [t.hudBest(g.best), '#7d8590'],
+    [g.cooldown > 0 && g.phase === 'play' ? t.hudReloading : '', '#ffb02e'],
     [g.slow > 0 ? '│ SLOW-MO ' : '', '#ff3df2'],
-    [!g.sound ? '│ звук выкл ' : !g.music ? '│ ♪ выкл ' : '', '#7d8590'],
+    [!g.sound ? t.hudSoundOff : !g.music ? t.hudMusicOff : '', '#7d8590'],
   ]
   const spans: Span[] = []
   let used = 0
@@ -1635,20 +1835,19 @@ const hud = (g: Game): Span[] => {
     spans.push({ text, fg, bg })
     used += text.length
   }
-  // кнопка зума справа — по ней можно кликнуть
-  const label = g.zoom ? (g.zoomT >= d.settle ? '◎ ZOOM 2× [Z]' : '◎ ZOOM …  [Z]') : '◎ ЗУМ  [Z/E]'
+  // zoom button on the right — it is clickable
+  const label = g.zoom ? (g.zoomT >= d.settle ? '◎ ZOOM 2× [Z]' : '◎ ZOOM …  [Z]') : t.zoomBtn
   spans.push({ text: ' '.repeat(Math.max(0, g.W - used - ZOOM_W)), fg: '#ffffff', bg })
   spans.push({ text: ` ${label} `.padEnd(ZOOM_W), fg: g.zoom ? '#0d0f1a' : '#ff5050', bg: g.zoom ? '#ff4040' : '#2a0d12' })
   return spans
 }
 
-const HELP = ' мышь/стрелки — прицел · клик/пробел — огонь · Z/E/ПКМ — оптика · C — фокус · T — тепловизор · P — пауза · R — заново · B — музыка · V — звук · Esc — выйти'
 
 const frame = (g: Game): Row[] => {
   const { W, H } = g
   const l = view(g)
   if (g.hurt > 0) {
-    // ранение: края экрана в крови
+    // wounded: the screen edges go red
     for (let x = 0; x < W; x++)
       for (const y of [0, H - 1]) {
         const i = y * W + x
@@ -1661,7 +1860,7 @@ const frame = (g: Game): Row[] => {
       }
   }
   if (g.focusT > 0) {
-    // фокус: время замедлено, края экрана голубые
+    // focus: time slows, the screen edges go cyan
     for (let x = 0; x < W; x++) for (const y of [0, H - 1]) l.bg[y * W + x] = mix(l.bg[y * W + x]!, '#2ef2ff', 0.45)
     for (let y = 0; y < H; y++) for (const x of [0, W - 1]) l.bg[y * W + x] = mix(l.bg[y * W + x]!, '#2ef2ff', 0.45)
   }
@@ -1672,9 +1871,9 @@ const frame = (g: Game): Row[] => {
   return rows
 }
 
-// ---------- компонент ----------
+// ---------- component ----------
 
-// Поле не больше ~4400 клеток: иначе кадр не влезет в лимит дерева (100 тыс. символов)
+// At most ~4400 cells: otherwise a frame exceeds the tree limit (100k characters)
 const MAX_CELLS = 4400
 const MAX_ROWS = 44
 
@@ -1686,19 +1885,19 @@ const Game: ClientModule<Props, State> = (props, surface) => {
   const best = props?.best ?? 0
 
   if (W < 50 || H < 14) {
-    if (!surface.state && W > 0) init(surface, W, H, best, props?.save ?? null)
+    if (!surface.state && W > 0) init(surface, W, H, best, props?.save ?? null, props?.lang === 'ru' ? 'ru' : 'en')
     return (
       <Box flexDirection="column" padding={1} width={Math.max(1, W)} height={Math.max(1, surface.rows)}>
         <Text color="#2ef2ff">◎ SNIPER 2026</Text>
-        <Text dimColor>Нужно хотя бы 50×16 клеток, сейчас {W}×{H + 2}. Растяни панель.</Text>
+        <Text dimColor>{TEXTS[props?.lang ?? 'en'].tooSmall(W, H + 2)}</Text>
       </Box>
     )
   }
 
-  const st = surface.state ?? init(surface, W, H, best, props?.save ?? null)
+  const st = surface.state ?? init(surface, W, H, best, props?.save ?? null, props?.lang === 'ru' ? 'ru' : 'en')
   const g = st.g
   if (g.W !== W || g.H !== H) {
-    // размер поменялся — перестраиваем улицу, этап начинаем заново
+    // the size changed — rebuild the street and restart the stage
     g.W = W
     g.H = H
     g.ax = clamp(g.ax, 0, W - 1)
@@ -1723,20 +1922,22 @@ const Game: ClientModule<Props, State> = (props, surface) => {
         </Text>
       ))}
       <Text wrap="truncate" dimColor>
-        {HELP}
+        {tx(g).help}
       </Text>
     </Box>
     </Box>
   )
 }
 
-// Один post на кадр: движок оставляет только последний за кадр,
-// поэтому звуки, музыку и рекорд шлём вместе.
+// One post per frame: the engine keeps only the last one,
+// so sounds, music, best score and save go together.
 const flushPost = (g: Game, post: (d: unknown) => void) => {
   const fighting = g.phase === 'play' || g.phase === 'move' || g.phase === 'clear'
   const music = g.music && g.sound && fighting && !g.paused ? 'on' : 'off'
-  if (!g.sfx.length && music === g.sent && g.bestPending < 0 && g.savePending === undefined) return
-  const msg: { sfx?: string[]; music: boolean; best?: number; save?: Save | null } = { music: music === 'on' }
+  if (!g.sfx.length && music === g.sent && g.bestPending < 0 && g.savePending === undefined && !g.langPending) return
+  const msg: { sfx?: string[]; music: boolean; best?: number; save?: Save | null; lang?: Lang } = { music: music === 'on' }
+  if (g.langPending) msg.lang = g.lang
+  g.langPending = false
   if (g.sfx.length && g.sound) msg.sfx = [...new Set(g.sfx)]
   if (g.bestPending >= 0) msg.best = g.bestPending
   if (g.savePending !== undefined) msg.save = g.savePending
@@ -1747,9 +1948,10 @@ const flushPost = (g: Game, post: (d: unknown) => void) => {
   post(msg)
 }
 
-const init = (surface: ClientSurface<State>, W: number, H: number, best: number, save: Save | null): State => {
+const init = (surface: ClientSurface<State>, W: number, H: number, best: number, save: Save | null, lang: Lang): State => {
   const g = newGame(Math.max(W, 50), Math.max(H, 14), best, (Date.now() & 0xffffffff) >>> 0)
   g.saved = save
+  g.lang = lang
   const first: State = { g, frame: 0 }
   surface.setState(first)
   const cur = () => (surface.state ?? first).g
@@ -1803,6 +2005,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     konami(g, k)
     const step = e.shift ? 4 : 1
     const n = Number(k)
+    // Cyrillic letters are the same physical keys on a Russian layout
     if ((k === 'c' || k === 'с') && (g.phase === 'intro' || g.phase === 'lost') && g.saved) resume(g)
     else if (g.phase === 'intro' && n >= 1 && n <= DIFFS.length) {
       g.diff = n - 1
@@ -1810,7 +2013,10 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     } else if (g.phase === 'intro' && (k === 'up' || k === 'w' || k === 'ц')) g.diff = Math.max(0, g.diff - 1)
     else if (g.phase === 'intro' && (k === 'down' || k === 's' || k === 'ы')) g.diff = Math.min(DIFFS.length - 1, g.diff + 1)
     else if ((k === 'm' || k === 'ь') && (g.phase === 'won' || g.phase === 'lost')) g.phase = 'intro'
-    else if (k === 'b' || k === 'и') g.music = !g.music
+    else if (k === 'l' || k === 'д') {
+      g.lang = g.lang === 'en' ? 'ru' : 'en'
+      g.langPending = true
+    } else if (k === 'b' || k === 'и') g.music = !g.music
     else if (k === 'v' || k === 'м') g.sound = !g.sound
     else if (k === 'left' || k === 'a' || k === 'ф') g.ax = clamp(g.ax - step * 2, 0, g.W - 1)
     else if (k === 'right' || k === 'd' || k === 'в') g.ax = clamp(g.ax + step * 2, 0, g.W - 1)
@@ -1836,7 +2042,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
   return first
 }
 
-// ↑↑↓↓←→←→BA: радужные трассеры и +10 патронов, раз за игру
+// ↑↑↓↓←→←→BA: rainbow tracers and +10 ammo, once per game
 const KONAMI = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right', 'b', 'a']
 const konami = (g: Game, k: string) => {
   g.keys = [...g.keys, k === 'и' ? 'b' : k === 'ф' ? 'a' : k].slice(-KONAMI.length)
@@ -1844,7 +2050,7 @@ const konami = (g: Game, k: string) => {
   g.rainbow = true
   g.ammo += 10
   g.sfx.push('pickup')
-  showBanner(g, '↑↑↓↓←→←→BA · радужные трассеры · +10 патронов', '#ff3df2', 3000)
+  showBanner(g, tx(g).konami, '#ff3df2', 3000)
 }
 
 const begin = (g: Game) => {
@@ -1860,7 +2066,7 @@ const restart = (g: Game) => {
   startLevel(g, 1)
 }
 
-// продолжить с сохранённого этапа
+// continue from the saved stage
 const resume = (g: Game) => {
   const sv = g.saved
   if (!sv) return
@@ -1874,7 +2080,7 @@ const resume = (g: Game) => {
   checkpoint(g, { ...sv, stage: g.stage, hp: g.hp })
 }
 
-// для офлайн-проверок
+// for offline checks
 export const _debug = { newGame, tick, frame, shoot, begin, startLevel, rowCost, visibleCells }
 
 export default Game

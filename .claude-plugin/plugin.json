@@ -1,12 +1,17 @@
 {
   "name": "sniper",
-  "version": "0.4.0",
-  "description": "Снайпер на неоновой улице: этапы, перебежки, каски, заложники, тепловизор. Играй в панели Claude Code, пока Claude думает",
+  "version": "0.5.0",
+  "description": "A sniper game on a neon street: stages, helmets, hostages, thermal vision. Play in a Claude Code panel while Claude thinks. English and Russian",
   "author": {
-    "name": "Вячеслав Ефимов",
+    "name": "Vyacheslav Efimov",
     "url": "https://github.com/rav3n"
   },
   "homepage": "https://github.com/rav3n/claude_mode_sniper",
   "repository": "https://github.com/rav3n/claude_mode_sniper",
-  "keywords": ["game", "sniper", "mod", "terminal"]
+  "keywords": [
+    "game",
+    "sniper",
+    "mod",
+    "terminal"
+  ]
 }

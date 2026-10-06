@@ -27,7 +27,7 @@ const SFX: Record<string, number> = {
   meow: 0.7,
 }
 
-// музыка играет, пока жив этот контроллер
+// the music plays while this controller is alive
 let music: AbortController | undefined
 const stopMusic = () => {
   music?.abort()
@@ -38,31 +38,33 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'sniper',
-      description: 'Снайпер: зачисти город, пока Claude думает',
+      description: 'Sniper: clear the street while Claude thinks',
     })
 
     return next(e)
   })
 
   on('command.run', { command: 'sniper' }, async $ => {
-    await $.ui.open({ id: PANE, title: 'Снайпер', focus: true, closeOnEscape: true, rows: 32 })
+    const ru = (await $.store.get('lang')) === 'ru'
+    await $.ui.open({ id: PANE, title: ru ? 'Снайпер' : 'Sniper', focus: true, closeOnEscape: true, rows: 32 })
 
-    return { text: 'Снайпер на позиции. Кликни по панели, чтобы она получила клавиатуру.' }
+    return { text: ru ? 'Снайпер на позиции. Кликни по панели, чтобы она получила клавиатуру.' : 'Sniper in position. Click the panel to give it the keyboard.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     if (e.surface !== 'terminal' && e.surface !== 'desktop') {
       const { Text } = $.ui.resolve(e)
-      return <Text>Снайпер играется только в терминале или десктопе.</Text>
+      return <Text>Sniper runs only in the terminal or the desktop app.</Text>
     }
     const { Client } = $.ui.resolve({ ...e, surface: e.surface })
     const best = Number((await $.store.get('best')) ?? 0)
     const save = (await $.store.get('save')) ?? null
-    // регион берёт размер тела панели, иначе он сжимается до нарисованного
+    const lang = (await $.store.get('lang')) ?? 'en'
+    // the region takes the pane body size, otherwise it shrinks to what is drawn
     const columns = Math.max(1, e.props?.bodyColumns ?? e.viewport?.columns ?? 80)
     const rows = Math.max(1, e.props?.scroll?.bodyRows ?? 30)
 
-    return <Client key="game" module="./game.tsx" props={{ best, save }} width={columns} height={rows} />
+    return <Client key="game" module="./game.tsx" props={{ best, save, lang }} width={columns} height={rows} />
   })
 
   on('ui.close', async ($, e, next) => {
@@ -76,8 +78,9 @@ export const register: Register = on => {
   })
 
   on('ui.message', async ($, e) => {
-    const data = e.data as { best?: unknown; sfx?: unknown; music?: unknown; save?: unknown } | null
-    // прогресс: контрольная точка в начале этапа
+    const data = e.data as { best?: unknown; sfx?: unknown; music?: unknown; save?: unknown; lang?: unknown } | null
+    if (data?.lang === 'en' || data?.lang === 'ru') await $.store.set('lang', data.lang)
+    // progress: the checkpoint at the start of a stage
     if (data?.save !== undefined) await $.store.set('save', data.save as never)
 
     for (const name of Array.isArray(data?.sfx) ? data.sfx : []) {
@@ -97,9 +100,9 @@ export const register: Register = on => {
     const best = Number((await $.store.get('best')) ?? 0)
     if (score > best) {
       await $.store.set('best', score)
-      $.ui.toast(`Снайпер: новый рекорд — ${score}`)
+      $.ui.toast((await $.store.get('lang')) === 'ru' ? `Снайпер: новый рекорд — ${score}` : `Sniper: new best — ${score}`)
     }
 
-    return { props: { best: Math.max(score, best), save: (await $.store.get('save')) ?? null } }
+    return { props: { best: Math.max(score, best), save: (await $.store.get('save')) ?? null, lang: (await $.store.get('lang')) ?? 'en' } }
   })
 }
