@@ -1,9 +1,21 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 const PANE = 'sniper'
+const REPO = 'rav3n/claude_mode_sniper'
+
+// the player said yes: star the repository with their gh, or hand them the link
+const starRepo = async ($: Engine, ru: boolean) => {
+  for (const argv of [['gh', 'repo', 'star', REPO], ['gh', 'api', '-X', 'PUT', `/user/starred/${REPO}`]]) {
+    try {
+      if ((await $.process.run(argv)).exitCode === 0) return $.ui.toast(ru ? 'Снайпер: спасибо за звезду ⭐' : 'Sniper: thanks for the star ⭐')
+    } catch {}
+  }
+  $.ui.toast(ru ? `Снайпер: звезду можно поставить тут — https://github.com/${REPO}` : `Sniper: star it here — https://github.com/${REPO}`)
+}
 
 const SFX: Record<string, number> = {
   shot: 0.9,
+  apshot: 1,
   reload: 0.8,
   hit: 0.9,
   headshot: 1,
@@ -114,11 +126,12 @@ export const register: Register = on => {
     const best = Number((await $.store.get('best')) ?? 0)
     const save = (await $.store.get('save')) ?? null
     const lang = (await $.store.get('lang')) ?? 'en'
+    const askStar = !(await $.store.get('starAsked'))
     // the region takes the pane body size, otherwise it shrinks to what is drawn
     const columns = Math.max(1, e.props?.bodyColumns ?? e.viewport?.columns ?? 80)
     const rows = Math.max(1, e.props?.scroll?.bodyRows ?? 30)
 
-    return <Client key="game" module="./game.tsx" props={{ best, save, lang }} width={columns} height={rows} />
+    return <Client key="game" module="./game.tsx" props={{ best, save, lang, askStar }} width={columns} height={rows} />
   })
 
   on('ui.close', async ($, e, next) => {
@@ -132,8 +145,13 @@ export const register: Register = on => {
   })
 
   on('ui.message', async ($, e) => {
-    const data = e.data as { best?: unknown; sfx?: unknown; music?: unknown; save?: unknown; lang?: unknown } | null
+    const data = e.data as { best?: unknown; sfx?: unknown; music?: unknown; save?: unknown; lang?: unknown; star?: unknown } | null
     if (data?.lang === 'en' || data?.lang === 'ru') await $.store.set('lang', data.lang)
+    // the first launch asks once: is it working, and a star for the repository
+    if (typeof data?.star === 'boolean') {
+      await $.store.set('starAsked', true)
+      if (data.star) void starRepo($, (await $.store.get('lang')) === 'ru')
+    }
     // progress: the checkpoint at the start of a stage
     if (data?.save !== undefined) await $.store.set('save', data.save as never)
 

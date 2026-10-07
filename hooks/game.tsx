@@ -5,9 +5,9 @@ import type { ClientKeyEvent, ClientModule, ClientPointerEvent, ClientSurface } 
 // camera moves on down the street. Character graphics: one cell, one object.
 
 // Checkpoint: the start of a stage. Kept in the plugin store between runs.
-type Save = { level: number; stage: number; score: number; shots: number; hits: number; diff: number; hp: number }
+type Save = { level: number; stage: number; score: number; shots: number; hits: number; diff: number; hp: number; ap?: number }
 type Lang = 'en' | 'ru'
-type Props = { best?: number; save?: Save | null; lang?: Lang }
+type Props = { best?: number; save?: Save | null; lang?: Lang; askStar?: boolean }
 
 type SpawnKind = 'window' | 'door' | 'car' | 'barrier' | 'roof'
 type Spawn = { kind: SpawnKind; x: number; y: number; rows: number; busy: boolean; used: boolean }
@@ -77,6 +77,9 @@ type Texts = {
   onTheMove: string
   plusLife: string
   plusAmmo: string
+  plusAp: (n: number) => string
+  apStreak: string
+  pierced: string
   ufo: string
   moonSniper: string
   moon: (n: number) => string
@@ -98,9 +101,16 @@ type Texts = {
   failedHint: (saved: boolean) => string
   paused: string
   pauseHint: string
+  confirmTitle: string
+  confirmLoss: (s: Save) => string
+  confirmHint: string
+  starTitle: string
+  starText: string[]
+  starHint: string
   hudLevel: (level: number, stage: number, stages: number) => string
   hudTargets: (k: number, n: number) => string
   hudAmmo: string
+  hudAp: (n: number, on: boolean) => string
   hudFocus: string
   hudFocusReady: string
   hudFocusOn: string
@@ -146,6 +156,9 @@ const TEXTS: Record<Lang, Texts> = {
     onTheMove: ' ON THE MOVE',
     plusLife: '+1 LIFE',
     plusAmmo: '+3 AMMO',
+    plusAp: n => `+${n} AP ${n > 1 ? 'ROUNDS' : 'ROUND'} [G]`,
+    apStreak: '3 HEADSHOTS IN A ROW · +1 AP ROUND [G]',
+    pierced: ' PIERCED',
     ufo: 'UFO DOWN! · X-FILES +2500',
     moonSniper: 'MOON SNIPER · +1000',
     moon: n => `moon ${n}/3`,
@@ -173,9 +186,16 @@ const TEXTS: Record<Lang, Texts> = {
     failedHint: saved => (saved ? 'Click or R — restart · C — retry the stage · M — difficulty' : 'Click or R — restart · M — difficulty'),
     paused: 'PAUSED',
     pauseHint: 'P — resume',
+    confirmTitle: 'START OVER?',
+    confirmLoss: s => `The save is lost: level ${s.level}, stage ${s.stage + 1}, score ${s.score}`,
+    confirmHint: 'Y — yes, start over · N — no',
+    starTitle: 'IS EVERYTHING WORKING?',
+    starText: ['If you like the game, star it on GitHub:', 'that helps other people find it.'],
+    starHint: 'Y — yes, star the repo ⭐ · N — not now',
     hudLevel: (l, s, n) => `│ lv.${l} stage ${s}/${n} `,
     hudTargets: (k, n) => `│ targets ${k}/${n} `,
     hudAmmo: '│ ammo ',
+    hudAp: (n, on) => ` AP×${n}${on ? ' ON' : ' [G]'}`,
     hudFocus: 'focus',
     hudFocusReady: 'focus [C]',
     hudFocusOn: 'FOCUS!',
@@ -187,7 +207,7 @@ const TEXTS: Record<Lang, Texts> = {
     hudSoundOff: '│ sound off ',
     hudMusicOff: '│ ♪ off ',
     zoomBtn: '◎ ZOOM [Z/E]',
-    help: ' mouse/arrows — aim · click/space — fire · Z/E/RMB — scope · C — focus · T — thermal · P — pause · R — restart · L — language · B — music · V — sound · Esc — quit',
+    help: ' mouse/arrows — aim · click/space — fire · Z/E/RMB — scope · G — AP rounds · C — focus · T — thermal · P — pause · R — restart · L — language · B — music · V — sound · Esc — quit',
     tooSmall: (w, h) => `Needs at least 50×16 cells, now ${w}×${h}. Make the panel bigger.`,
   },
   ru: {
@@ -219,6 +239,9 @@ const TEXTS: Record<Lang, Texts> = {
     onTheMove: ' НА ХОДУ',
     plusLife: '+1 ЖИЗНЬ',
     plusAmmo: '+3 ПАТРОНА',
+    plusAp: n => `+${n} ${n > 1 ? 'БРОНЕБОЙНЫХ' : 'БРОНЕБОЙНЫЙ'} [G]`,
+    apStreak: '3 ХЕДШОТА ПОДРЯД · +1 БРОНЕБОЙНЫЙ [G]',
+    pierced: ' ПРОБИЛ',
     ufo: 'НЛО СБИТО! · X-FILES +2500',
     moonSniper: 'ЛУННЫЙ СНАЙПЕР · +1000',
     moon: n => `луна ${n}/3`,
@@ -246,9 +269,16 @@ const TEXTS: Record<Lang, Texts> = {
     failedHint: saved => (saved ? 'Клик или R — заново · C — с начала этапа · M — сложность' : 'Клик или R — заново · M — сложность'),
     paused: 'ПАУЗА',
     pauseHint: 'P — продолжить',
+    confirmTitle: 'НАЧАТЬ ЗАНОВО?',
+    confirmLoss: s => `Сохранение пропадёт: уровень ${s.level}, этап ${s.stage + 1}, счёт ${s.score}`,
+    confirmHint: 'Y — да, заново · N — нет',
+    starTitle: 'ВСЁ РАБОТАЕТ?',
+    starText: ['Если игра понравилась, поставь звезду на GitHub —', 'так её найдут другие.'],
+    starHint: 'Y — да, поставить звезду ⭐ · N — не сейчас',
     hudLevel: (l, s, n) => `│ ур.${l} этап ${s}/${n} `,
     hudTargets: (k, n) => `│ цели ${k}/${n} `,
     hudAmmo: '│ патроны ',
+    hudAp: (n, on) => ` ББ×${n}${on ? ' ВКЛ' : ' [G]'}`,
     hudFocus: 'фокус',
     hudFocusReady: 'фокус [C]',
     hudFocusOn: 'ФОКУС!',
@@ -260,7 +290,7 @@ const TEXTS: Record<Lang, Texts> = {
     hudSoundOff: '│ звук выкл ',
     hudMusicOff: '│ ♪ выкл ',
     zoomBtn: '◎ ЗУМ  [Z/E]',
-    help: ' мышь/стрелки — прицел · клик/пробел — огонь · Z/E/ПКМ — оптика · C — фокус · T — тепловизор · P — пауза · R — заново · L — язык · B — музыка · V — звук · Esc — выйти',
+    help: ' мышь/стрелки — прицел · клик/пробел — огонь · Z/E/ПКМ — оптика · G — бронебойные · C — фокус · T — тепловизор · P — пауза · R — заново · L — язык · B — музыка · V — звук · Esc — выйти',
     tooSmall: (w, h) => `Нужно хотя бы 50×16 клеток, сейчас ${w}×${h}. Растяни панель.`,
   },
 }
@@ -344,7 +374,7 @@ type Game = {
   cars: Car[]
   barrels: Barrel[]
   carRow: number
-  tracer: { x: number; y: number; ms: number } | null
+  tracer: { x: number; y: number; ms: number; ap: boolean } | null
   stars: [number, number, string][]
   nextId: number
   diff: number
@@ -363,6 +393,12 @@ type Game = {
   saved: Save | null
   savePending: Save | null | undefined // what to send to the hooks; undefined — nothing
   armed: boolean // a real game is on, not the menu backdrop — saving is allowed
+  confirm: boolean // asking before a new game wipes the save
+  askStar: boolean // the first launch: is it working, star the repository?
+  starPending: boolean | undefined // the answer to send to the hooks; undefined — nothing
+  ap: number // armor-piercing rounds: go through helmets, kept between stages
+  apOn: boolean // the next shots use them
+  heads: number // headshot kills in a row, every third gives an AP round
   theme: Theme
   wind: number // wind drift of the bullet, cells
   focus: number // focus charge 0..1
@@ -655,6 +691,12 @@ const newGame = (W: number, H: number, best: number, seed: number): Game => {
     saved: null,
     savePending: undefined,
     armed: false,
+    confirm: false,
+    askStar: false,
+    starPending: undefined,
+    ap: 0,
+    apOn: false,
+    heads: 0,
     theme: THEMES[0]!,
     wind: 0,
     focus: 0,
@@ -726,7 +768,7 @@ const startStage = (g: Game, stage: number) => {
   g.supplyT = 9000 + ri(g, 0, 9000)
   g.ufo = null
   g.ufoT = g.level >= 3 && rnd(g) < 0.4 ? ri(g, 3000, 20000) : 1e9
-  if (g.armed) checkpoint(g, { level: g.level, stage, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: g.hp })
+  if (g.armed) checkpoint(g, { level: g.level, stage, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: g.hp, ap: g.ap })
   const news = stage === 0 ? tx(g).news[Math.min(g.level, 7)] : undefined
   if (news && g.level <= 7) showBanner(g, tx(g).levelNew(g.level, news), '#7dff6b', 3500)
   else showBanner(g, tx(g).levelStage(g.level, stage + 1, g.stages), '#ffe14d', 1500)
@@ -855,7 +897,7 @@ const finish = (g: Game, phase: Phase, reason: string) => {
   g.bestPending = g.score
   g.sfx.push(phase === 'won' ? 'win' : 'lose')
   // level complete — the next one starts from here
-  if (phase === 'won') checkpoint(g, { level: g.level + 1, stage: 0, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: diffOf(g).hp })
+  if (phase === 'won') checkpoint(g, { level: g.level + 1, stage: 0, score: g.score, shots: g.shots, hits: g.hits, diff: g.diff, hp: diffOf(g).hp, ap: g.ap })
 }
 
 // blood spray flies out and falls
@@ -1092,7 +1134,7 @@ const tick = (g: Game, realDt: number) => {
   }
   g.bannerMs = Math.max(0, g.bannerMs - realDt)
   g.fx = g.fx.filter(f => (f.ms -= realDt) > 0)
-  if (g.paused) return
+  if (g.paused || g.confirm) return
   const dt = g.slow > 0 || g.focusT > 0 ? realDt * 0.3 : realDt
   g.slow = Math.max(0, g.slow - realDt)
   g.focusT = Math.max(0, g.focusT - realDt)
@@ -1180,7 +1222,7 @@ const tick = (g: Game, realDt: number) => {
   if (g.hp <= 0) return finish(g, 'lost', tx(g).shot)
 
   const alive = g.enemies.filter(e => e.st !== 'dead' && !e.civ).length
-  if (g.level >= 3) {
+  if (g.level >= 3 && g.killed < g.toKill) {
     g.civT -= dt
     if (g.civT <= 0) {
       spawnCiv(g)
@@ -1207,7 +1249,9 @@ const tick = (g: Game, realDt: number) => {
     g.nextSpawn = g.gapMs + ri(g, 0, 700)
   }
 
-  if (g.killed >= g.toKill && alive === 0 && g.slow <= 0) {
+  // hostages hide before the sniper moves on
+  const civs = g.enemies.some(e => e.st !== 'dead' && e.civ)
+  if (g.killed >= g.toKill && alive === 0 && !civs && g.slow <= 0) {
     const bonus = g.ammo * 50
     g.score += bonus
     g.phase = 'clear'
@@ -1216,28 +1260,50 @@ const tick = (g: Game, realDt: number) => {
     showBanner(g, tx(g).stageClear(g.stage + 1, g.stages, bonus), '#7dff6b', 1500)
     return
   }
-  if (g.ammo === 0 && g.killed < g.toKill && !g.barrels.some(b => b.alive && b.fuse >= 0)) {
+  if (g.ammo === 0 && g.ap === 0 && g.killed < g.toKill && !g.barrels.some(b => b.alive && b.fuse >= 0)) {
     g.outOfAmmoT += dt
     if (g.outOfAmmoT > 600) return finish(g, 'lost', tx(g).noAmmo)
   }
 }
 
+const AP_MAX = 5
+
+const addAp = (g: Game, n: number) => {
+  g.ap = Math.min(AP_MAX, g.ap + n)
+}
+
+// three headshot kills in a row give an AP round, once helmets show up
+const headStreak = (g: Game, head: boolean) => {
+  g.heads = head ? g.heads + 1 : 0
+  if (g.heads < 3 || g.level < 2) return
+  g.heads = 0
+  addAp(g, 1)
+  g.sfx.push('pickup')
+  showBanner(g, tx(g).apStreak, '#ff8a1e', 1800)
+}
+
 const shoot = (g: Game) => {
   if (g.phase !== 'play') return
   if (g.cooldown > 0) return addFx(g, Math.round(g.ax) + 2, Math.round(g.ay) - 1, tx(g).reloading, '#aaaaaa', 300)
-  if (g.ammo <= 0) {
+  // an AP round goes when switched on, or when the plain ones are out
+  const ap = g.ap > 0 && (g.apOn || g.ammo <= 0)
+  if (g.ammo <= 0 && !ap) {
     g.sfx.push('empty')
     return addFx(g, Math.round(g.ax) + 2, Math.round(g.ay) - 1, tx(g).empty, '#ff5050', 400)
   }
   const d = diffOf(g)
   const steady = g.zoom && g.zoomT >= d.settle
   const [bx, by] = aim(g)
-  g.ammo -= 1
+  if (ap) {
+    g.ap -= 1
+    if (!g.ap) g.apOn = false
+  } else g.ammo -= 1
   g.shots += 1
   g.cooldown = 750
   g.flash = 90
-  g.kick = 1
-  g.sfx.push('shot')
+  g.kick = ap ? 1.6 : 1
+  if (ap) g.shake = Math.max(g.shake, 180)
+  g.sfx.push(ap ? 'apshot' : 'shot')
   g.reloadAt = g.time + 260
   // the bolt cycles — the scope drops
   g.zoom = false
@@ -1253,7 +1319,7 @@ const shoot = (g: Game) => {
   const hx = clamp(bx + dx + g.wind, 0, g.W - 1) // the wind pushes the bullet
   const hy = clamp(by + dy, 0, g.H - 1)
   const wx = hx + g.camX
-  g.tracer = { x: hx, y: hy, ms: 80 }
+  g.tracer = { x: hx, y: hy, ms: ap ? 140 : 80, ap }
 
   for (const e of g.enemies) {
     const k = visibleCells(e).findIndex(([cx, cy]) => cx === wx && cy === hy)
@@ -1263,14 +1329,16 @@ const shoot = (g: Game) => {
       kill(g, e, head)
       g.score = Math.max(0, g.score - 300)
       g.combo = 0
+      g.heads = 0
       g.hurt = 400
       g.sfx.push('hurt')
       showBanner(g, tx(g).hostage, '#ff4040', 1500)
       return
     }
-    if (head && e.helmet) {
+    if (head && e.helmet && !ap) {
       // the helmet held: it flies off, the enemy flinches and fires sooner
       e.helmet = false
+      g.heads = 0
       g.hits += 1
       g.sfx.push('ricochet')
       addFx(g, hx + 1, hy, tx(g).clang, '#c8d0dc', 600, true)
@@ -1279,18 +1347,26 @@ const shoot = (g: Game) => {
       return
     }
     const moving = e.st === 'run' || e.kind === 'drone'
+    const pierced = head && e.helmet
+    if (pierced) {
+      e.helmet = false
+      g.sfx.push('ricochet')
+    }
     g.combo += 1
     g.hits += 1
-    const pts = Math.round((100 + (head ? 50 : 0) + (moving ? 75 : 0)) * Math.min(5, g.combo) * d.mul)
+    const pts = Math.round((100 + (head ? 50 : 0) + (pierced ? 50 : 0) + (moving ? 75 : 0)) * Math.min(5, g.combo) * d.mul)
     g.score += pts
     kill(g, e, head)
-    addFx(g, hx + 1, hy, `+${pts}${head ? ' HEADSHOT' : moving ? tx(g).onTheMove : ''}${g.combo > 1 ? ` x${Math.min(5, g.combo)}` : ''}`, head ? '#ffe14d' : '#7dff6b', 900, true)
+    const label = pierced ? tx(g).pierced : head ? ' HEADSHOT' : moving ? tx(g).onTheMove : ''
+    addFx(g, hx + 1, hy, `+${pts}${label}${g.combo > 1 ? ` x${Math.min(5, g.combo)}` : ''}`, pierced ? '#ff8a1e' : head ? '#ffe14d' : '#7dff6b', 900, true)
+    headStreak(g, head)
     afterKill(g)
     return
   }
 
   if (shootExtras(g, hx, hy, wx)) return
   g.combo = 0
+  g.heads = 0
   const S = sidewalk(g)
   const barrel = g.barrels.find(b => b.alive && (wx === b.x || wx === b.x + 1) && (hy === S - 1 || hy === S - 2))
   if (barrel) {
@@ -1323,6 +1399,9 @@ const shootExtras = (g: Game, hx: number, hy: number, wx: number): boolean => {
     if (g.hp < d.hp) {
       g.hp += 1
       addFx(g, hx + 1, hy, tx(g).plusLife, '#ff4d6d', 1000, true)
+    } else if (rnd(g) < 0.5) {
+      addAp(g, 2)
+      addFx(g, hx + 1, hy, tx(g).plusAp(2), '#ff8a1e', 1000, true)
     } else {
       g.ammo += 3
       addFx(g, hx + 1, hy, tx(g).plusAmmo, '#ffe14d', 1000, true)
@@ -1624,11 +1703,11 @@ const view = (g: Game): Scene => {
     for (let k = Math.floor(n / 3); k < n; k++) {
       const x = Math.round(sx + ((g.tracer.x - sx) * k) / n)
       const y = Math.round(sy + ((g.tracer.y - sy) * k) / n)
-      if (!scene.hot.has(y * W + x)) put(scene, W, H, x, y, '·', tint || '#fff3a0')
+      if (!scene.hot.has(y * W + x)) put(scene, W, H, x, y, g.tracer.ap ? '•' : '·', tint || (g.tracer.ap ? '#ff8a1e' : '#fff3a0'))
     }
   }
   if (!g.zoom || g.phase !== 'play') {
-    if (g.phase === 'play') crosshair(scene, W, H, ax, ay, tint || '#ff4040', 3, 1)
+    if (g.phase === 'play') crosshair(scene, W, H, ax, ay, tint || (g.apOn ? '#ff8a1e' : '#ff4040'), 3, 1)
     return scene
   }
 
@@ -1718,7 +1797,20 @@ const overlay = (g: Game, l: Layer) => {
   const { W, H } = g
   const lines: [string, string][] = []
   g.menuY = -1
-  if (g.phase === 'intro') {
+  if (g.askStar && g.phase === 'intro') {
+    lines.push([tx(g).starTitle, '#7dff6b'])
+    lines.push(['', ''])
+    for (const line of tx(g).starText) lines.push([line, '#e0e0e0'])
+    lines.push(['', ''])
+    lines.push([tx(g).starHint, '#ffe14d'])
+    lines.push([tx(g).lang, '#9ad1ff'])
+  } else if (g.confirm && g.saved) {
+    lines.push([tx(g).confirmTitle, '#ff4040'])
+    lines.push(['', ''])
+    lines.push([tx(g).confirmLoss(g.saved), '#e0e0e0'])
+    lines.push(['', ''])
+    lines.push([tx(g).confirmHint, '#ffe14d'])
+  } else if (g.phase === 'intro') {
     lines.push(['◎  SNIPER 2026  ◎', '#2ef2ff'])
     lines.push(['', ''])
     const t = tx(g)
@@ -1817,6 +1909,7 @@ const hud = (g: Game): Span[] => {
     [t.hudTargets(g.killed, g.toKill), '#e0e0e0'],
     [t.hudAmmo, '#aab0c0'],
     [ammo || '—', g.ammo <= 2 ? '#ff5050' : '#ffe14d'],
+    [g.ap ? t.hudAp(g.ap, g.apOn) : '', g.apOn ? '#ff8a1e' : '#b07a4a'],
     [' │ ', '#aab0c0'],
     [hearts, '#ff4d6d'],
     [g.level >= 2 ? ` │ ${g.focusT > 0 ? t.hudFocusOn : g.focus >= 1 ? t.hudFocusReady : `${t.hudFocus} ${'▮'.repeat(Math.floor(g.focus * 3))}${'▯'.repeat(3 - Math.floor(g.focus * 3))}`}` : '', g.focus >= 1 || g.focusT > 0 ? '#2ef2ff' : '#5a7a8a'],
@@ -1885,7 +1978,7 @@ const Game: ClientModule<Props, State> = (props, surface) => {
   const best = props?.best ?? 0
 
   if (W < 50 || H < 14) {
-    if (!surface.state && W > 0) init(surface, W, H, best, props?.save ?? null, props?.lang === 'ru' ? 'ru' : 'en')
+    if (!surface.state && W > 0) init(surface, W, H, best, props?.save ?? null, props?.lang === 'ru' ? 'ru' : 'en', !!props?.askStar)
     return (
       <Box flexDirection="column" padding={1} width={Math.max(1, W)} height={Math.max(1, surface.rows)}>
         <Text color="#2ef2ff">◎ SNIPER 2026</Text>
@@ -1894,7 +1987,7 @@ const Game: ClientModule<Props, State> = (props, surface) => {
     )
   }
 
-  const st = surface.state ?? init(surface, W, H, best, props?.save ?? null, props?.lang === 'ru' ? 'ru' : 'en')
+  const st = surface.state ?? init(surface, W, H, best, props?.save ?? null, props?.lang === 'ru' ? 'ru' : 'en', !!props?.askStar)
   const g = st.g
   if (g.W !== W || g.H !== H) {
     // the size changed — rebuild the street and restart the stage
@@ -1933,9 +2026,11 @@ const Game: ClientModule<Props, State> = (props, surface) => {
 // so sounds, music, best score and save go together.
 const flushPost = (g: Game, post: (d: unknown) => void) => {
   const fighting = g.phase === 'play' || g.phase === 'move' || g.phase === 'clear'
-  const music = g.music && g.sound && fighting && !g.paused ? 'on' : 'off'
-  if (!g.sfx.length && music === g.sent && g.bestPending < 0 && g.savePending === undefined && !g.langPending) return
-  const msg: { sfx?: string[]; music: boolean; best?: number; save?: Save | null; lang?: Lang } = { music: music === 'on' }
+  const music = g.music && g.sound && fighting && !g.paused && !g.confirm ? 'on' : 'off'
+  if (!g.sfx.length && music === g.sent && g.bestPending < 0 && g.savePending === undefined && !g.langPending && g.starPending === undefined) return
+  const msg: { sfx?: string[]; music: boolean; best?: number; save?: Save | null; lang?: Lang; star?: boolean } = { music: music === 'on' }
+  if (g.starPending !== undefined) msg.star = g.starPending
+  g.starPending = undefined
   if (g.langPending) msg.lang = g.lang
   g.langPending = false
   if (g.sfx.length && g.sound) msg.sfx = [...new Set(g.sfx)]
@@ -1948,9 +2043,10 @@ const flushPost = (g: Game, post: (d: unknown) => void) => {
   post(msg)
 }
 
-const init = (surface: ClientSurface<State>, W: number, H: number, best: number, save: Save | null, lang: Lang): State => {
+const init = (surface: ClientSurface<State>, W: number, H: number, best: number, save: Save | null, lang: Lang, askStar: boolean): State => {
   const g = newGame(Math.max(W, 50), Math.max(H, 14), best, (Date.now() & 0xffffffff) >>> 0)
   g.saved = save
+  g.askStar = askStar
   g.lang = lang
   const first: State = { g, frame: 0 }
   surface.setState(first)
@@ -1967,9 +2063,8 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
   const primary = () => {
     const g = cur()
     if ((g.phase === 'won' || g.phase === 'lost') && g.time - g.endT < 800) return
-    if (g.phase === 'intro') begin(g)
+    if (g.phase === 'intro' || g.phase === 'lost') fresh(g)
     else if (g.phase === 'won') startLevel(g, g.level + 1)
-    else if (g.phase === 'lost') restart(g)
     else if (g.phase === 'play' && !g.paused) shoot(g)
   }
   const toggleZoom = () => {
@@ -1990,9 +2085,11 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     if (e.type === 'down') {
       const row = e.y - 1 - g.menuY
       if (e.y === 0 && ex >= g.W - ZOOM_W) toggleZoom()
-      else if (g.phase === 'intro' && g.menuY >= 0 && row >= 0 && row < DIFFS.length) {
+      else if (g.confirm || g.askStar) {
+        // a click does not answer the question: an accidental one must not wipe the save
+      } else if (g.phase === 'intro' && g.menuY >= 0 && row >= 0 && row < DIFFS.length) {
         g.diff = row
-        begin(g)
+        fresh(g)
       } else if (e.button === 'right' || e.button === 'middle' || e.ctrl || e.alt) toggleZoom()
       else if (e.y >= 1) primary()
     }
@@ -2006,10 +2103,21 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     const step = e.shift ? 4 : 1
     const n = Number(k)
     // Cyrillic letters are the same physical keys on a Russian layout
-    if ((k === 'c' || k === 'с') && (g.phase === 'intro' || g.phase === 'lost') && g.saved) resume(g)
+    if (g.askStar) {
+      if (k === 'y' || k === 'н' || k === 'n' || k === 'т') {
+        g.starPending = k === 'y' || k === 'н'
+        g.askStar = false
+      } else if (k === 'l' || k === 'д') {
+        g.lang = g.lang === 'en' ? 'ru' : 'en'
+        g.langPending = true
+      }
+    } else if (g.confirm) {
+      if (k === 'y' || k === 'н') begin(g)
+      else if (k === 'n' || k === 'т') g.confirm = false
+    } else if ((k === 'c' || k === 'с') && (g.phase === 'intro' || g.phase === 'lost') && g.saved) resume(g)
     else if (g.phase === 'intro' && n >= 1 && n <= DIFFS.length) {
       g.diff = n - 1
-      begin(g)
+      fresh(g)
     } else if (g.phase === 'intro' && (k === 'up' || k === 'w' || k === 'ц')) g.diff = Math.max(0, g.diff - 1)
     else if (g.phase === 'intro' && (k === 'down' || k === 's' || k === 'ы')) g.diff = Math.min(DIFFS.length - 1, g.diff + 1)
     else if ((k === 'm' || k === 'ь') && (g.phase === 'won' || g.phase === 'lost')) g.phase = 'intro'
@@ -2028,13 +2136,16 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
       g.focus = 0
       g.focusT = 2500
       g.sfx.push('focus')
+    } else if ((k === 'g' || k === 'п') && g.phase === 'play' && !g.paused) {
+      if (g.ap > 0) g.apOn = !g.apOn
+      g.sfx.push(g.ap > 0 ? 'reload' : 'empty')
     } else if ((k === 't' || k === 'е') && g.phase === 'play' && g.level >= 3 && !g.paused) {
       if (g.thermal || g.battery > 300) g.thermal = !g.thermal
       g.sfx.push('zoom')
     }
     else if (k === 'p' || k === 'з') {
       if (g.phase === 'play') g.paused = !g.paused
-    } else if (k === 'r' || k === 'к') restart(g)
+    } else if (k === 'r' || k === 'к') fresh(g)
     else if ((k === 'n' || k === 'т') && g.phase === 'won') startLevel(g, g.level + 1)
     redraw()
   })
@@ -2054,8 +2165,18 @@ const konami = (g: Game, k: string) => {
 }
 
 const begin = (g: Game) => {
+  g.confirm = false
   restart(g)
   g.phase = 'play'
+}
+
+// a new game overwrites the save: ask first when there is progress to lose
+const fresh = (g: Game) => {
+  const sv = g.saved
+  if (sv && (sv.level > 1 || sv.stage > 0 || sv.score > 0)) {
+    g.confirm = true
+    g.zoom = false
+  } else begin(g)
 }
 
 const restart = (g: Game) => {
@@ -2063,6 +2184,9 @@ const restart = (g: Game) => {
   g.score = 0
   g.shots = 0
   g.hits = 0
+  g.ap = 0
+  g.apOn = false
+  g.heads = 0
   startLevel(g, 1)
 }
 
@@ -2075,6 +2199,9 @@ const resume = (g: Game) => {
   g.score = sv.score
   g.shots = sv.shots
   g.hits = sv.hits
+  g.ap = sv.ap ?? 0
+  g.apOn = false
+  g.heads = 0
   startLevel(g, sv.level, sv.stage)
   g.hp = Math.max(1, Math.min(sv.hp, diffOf(g).hp))
   checkpoint(g, { ...sv, stage: g.stage, hp: g.hp })

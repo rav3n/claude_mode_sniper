@@ -6,7 +6,7 @@ const pane = (columns: number, rows: number) =>
 const PANE = pane(100, 30)
 
 test('the game starts on click, HUD shows stage and targets', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'sniper', surface, ...PANE })
     await ui.resize({ columns: 100, rows: 30, in: 'game' })
@@ -20,7 +20,7 @@ test('the game starts on click, HUD shows stage and targets', async ($, on) => {
 })
 
 test('zoom toggles with Z, E and the HUD button and drops after a shot', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.key({ key: '2', in: 'game' })
@@ -48,7 +48,7 @@ test('zoom toggles with Z, E and the HUD button and drops after a shot', async (
 })
 
 test('an empty magazine fails the mission, R restarts', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.key({ key: '2', in: 'game' })
@@ -70,7 +70,7 @@ test('an empty magazine fails the mission, R restarts', async ($, on) => {
 })
 
 test('Very hard: one life and exactly one round per target', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   expect(await ui.find({ type: 'Text', text: /4\. Very hard/, in: 'game' })).toBeDefined()
@@ -84,12 +84,12 @@ test('Very hard: one life and exactly one round per target', async ($, on) => {
 })
 
 test('shot, reload and music play', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const played: string[] = []
   on('audio.play', async ($, e) => {
     const clip = e.clip as { asset?: string }
     played.push(clip.asset ?? '?')
-    return undefined as never
+    return { value: undefined } as never
   })
   // on Windows the sounds go to the PowerShell player through its queue
   mock.env(on, { TEMP: 'C:\\Temp' })
@@ -114,7 +114,7 @@ test('shot, reload and music play', async ($, on) => {
 })
 
 test('a wide panel stays within the tree limits in combat', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   for (const [columns, rows] of [
     [160, 32],
     [230, 40],
@@ -129,7 +129,7 @@ test('a wide panel stays within the tree limits in combat', async ($, on) => {
 })
 
 test('the Konami code gives rainbow tracers and +10 ammo', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.key({ key: '2', in: 'game' })
@@ -140,7 +140,7 @@ test('the Konami code gives rainbow tracers and +10 ammo', async ($, on) => {
 })
 
 test('save: after reopening the panel the menu offers to continue', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   expect(await ui.find({ type: 'Text', text: /C — continue/, in: 'game' })).toBeUndefined()
@@ -155,7 +155,7 @@ test('save: after reopening the panel the menu offers to continue', async ($, on
 })
 
 test('save: C returns to the saved stage', async ($, on) => {
-  mock.store(on, { best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
+  mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   expect(await ui.find({ type: 'Text', text: /C — continue: level 3, stage 2, score 1234/, in: 'game' })).toBeDefined()
@@ -166,7 +166,7 @@ test('save: C returns to the saved stage', async ($, on) => {
 })
 
 test('L switches the language and it is remembered', async ($, on) => {
-  mock.store(on, { best: 0 })
+  mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   expect(await ui.find({ type: 'Text', text: /L — language: English/, in: 'game' })).toBeDefined()
@@ -179,4 +179,97 @@ test('L switches the language and it is remembered', async ($, on) => {
   await again.resize({ columns: 100, rows: 30, in: 'game' })
   expect(await again.find({ type: 'Text', text: /Пробел или клик — начать/, in: 'game' })).toBeDefined()
   await again.unmount()
+})
+
+test('save: a click on the menu asks before wiping the progress, N keeps it', async ($, on) => {
+  mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  await ui.pointer({ type: 'down', x: 50, y: 5, button: 'left', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /START OVER\?/, in: 'game' })).toBeDefined()
+  // another click does not answer
+  await ui.pointer({ type: 'down', x: 50, y: 5, button: 'left', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /level 3, stage 2, score 1234/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'n', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /C — continue: level 3, stage 2, score 1234/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('save: Y starts over after the question', async ($, on) => {
+  mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  await ui.key({ key: '2', in: 'game' })
+  await ui.key({ key: 'y', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /lv\.1 stage 1\/2/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('save: R in combat asks and stops the game, N returns to the stage', async ($, on) => {
+  mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  await ui.key({ key: 'c', in: 'game' })
+  await ui.key({ key: 'r', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /START OVER\?/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'n', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /START OVER\?/, in: 'game' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /lv\.3 stage 2\/3/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('AP rounds: kept in the save, G switches them on', async ($, on) => {
+  mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2, ap: 2 } })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...pane(160, 30) })
+  await ui.resize({ columns: 160, rows: 30, in: 'game' })
+  await ui.key({ key: 'c', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /AP×2 \[G\]/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'g', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /AP×2 ON/, in: 'game' })).toBeDefined()
+  // a shot spends the AP round, not the plain one
+  await ui.key({ key: ' ', in: 'game' })
+  await ui.advance(50)
+  expect(await ui.find({ type: 'Text', text: /AP×1 ON/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('the first launch asks for a star: Y stars the repo with gh, the question does not come back', async ($, on) => {
+  mock.store(on, { best: 0 })
+  const ran: string[] = []
+  on('process.run', async ($, e) => {
+    ran.push(e.argv.join(' '))
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /IS EVERYTHING WORKING\?/, in: 'game' })).toBeDefined()
+  // a click does not answer and does not start the game
+  await ui.pointer({ type: 'down', x: 50, y: 5, button: 'left', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /IS EVERYTHING WORKING\?/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'y', in: 'game' })
+  await ui.advance(100)
+  expect(ran).toContain('gh repo star rav3n/claude_mode_sniper')
+  expect(await ui.find({ type: 'Text', text: /SNIPER 2026/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+
+  const again = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await again.resize({ columns: 100, rows: 30, in: 'game' })
+  expect(await again.find({ type: 'Text', text: /IS EVERYTHING WORKING\?/, in: 'game' })).toBeUndefined()
+  await again.unmount()
+})
+
+test('the first launch asks for a star: N runs nothing', async ($, on) => {
+  mock.store(on, { best: 0 })
+  const ran: string[] = []
+  on('process.run', async ($, e) => {
+    ran.push(e.argv.join(' '))
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  await ui.key({ key: 'n', in: 'game' })
+  await ui.advance(100)
+  expect(ran).toEqual([])
+  expect(await ui.find({ type: 'Text', text: /SNIPER 2026/, in: 'game' })).toBeDefined()
+  await ui.unmount()
 })

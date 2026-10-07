@@ -85,6 +85,7 @@ Claude Code watches a `--plugin-dir` folder, so edits reload the mod on their ow
 | Fire | click, `Space`, `F`, `Enter` |
 | 2× scope | `Z`, `E`, `Q`, `Tab`, right mouse button or the "◎ ZOOM" button in the corner |
 | Focus (slow motion) | `C` — from level 2, charged by kills |
+| Armor-piercing rounds | `G` — on/off. They go through helmets. You get 1 for three headshots in a row (from level 2) and 2 from a supply drone |
 | Thermal | `T` — from level 3, the battery drains and recharges |
 | Pause / restart | `P` / `R` |
 | Language (English / Русский) | `L` |
