@@ -19,29 +19,29 @@ test('the game starts on click, HUD shows stage and targets', async ($, on) => {
   }
 })
 
-test('zoom toggles with X, E and the HUD button and drops after a shot, Z does nothing', async ($, on) => {
+test('zoom toggles with Z, the right button and the HUD button and drops after a shot, E and X do nothing', async ($, on) => {
   mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.key({ key: '2', in: 'game' })
 
-  await ui.key({ key: 'z', in: 'game' })
+  for (const key of ['e', 'x', 'q', 'tab']) await ui.key({ key, in: 'game' })
   await ui.advance(400)
   expect(await ui.find({ type: 'Text', text: /ZOOM 2×/, in: 'game' })).toBeUndefined()
-  await ui.key({ key: 'x', in: 'game' })
+  await ui.pointer({ type: 'down', x: 50, y: 10, button: 'right', in: 'game' })
   await ui.advance(400)
   expect(await ui.find({ type: 'Text', text: /ZOOM 2×/, in: 'game' })).toBeDefined()
 
   // a shot drops the scope
   await ui.key({ key: ' ', in: 'game' })
   await ui.advance(100)
-  expect(await ui.find({ type: 'Text', text: /ZOOM   \[E\]/, in: 'game' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /ZOOM   \[Z\]/, in: 'game' })).toBeDefined()
 
   await ui.advance(900)
-  await ui.key({ key: 'e', in: 'game' })
+  await ui.key({ key: 'z', in: 'game' })
   await ui.advance(400)
   expect(await ui.find({ type: 'Text', text: /ZOOM 2×/, in: 'game' })).toBeDefined()
-  await ui.key({ key: 'e', in: 'game' })
+  await ui.key({ key: 'z', in: 'game' })
 
   // the button in the HUD corner
   await ui.pointer({ type: 'down', x: 95, y: 0, button: 'left', in: 'game' })
@@ -230,13 +230,13 @@ test('R in combat does nothing', async ($, on) => {
   await ui.unmount()
 })
 
-test('AP rounds: kept in the save, G switches them on', async ($, on) => {
+test('AP rounds: kept in the save, A switches them on', async ($, on) => {
   mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2, ap: 2 } })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...pane(160, 30) })
   await ui.resize({ columns: 160, rows: 30, in: 'game' })
   await ui.key({ key: 'c', in: 'game' })
-  expect(await ui.find({ type: 'Text', text: /AP×2 \[G\]/, in: 'game' })).toBeDefined()
-  await ui.key({ key: 'g', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /AP×2 \[A\]/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'a', in: 'game' })
   expect(await ui.find({ type: 'Text', text: /AP×2 ON/, in: 'game' })).toBeDefined()
   // a shot spends the AP round, not the plain one
   await ui.key({ key: ' ', in: 'game' })

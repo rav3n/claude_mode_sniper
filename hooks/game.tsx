@@ -136,7 +136,7 @@ const TEXTS: Record<Lang, Texts> = {
       { name: 'Very hard', hint: '1 life, exactly one round per target: a miss means failure. Use the scope' },
     ],
     news: {
-      2: 'helmets — aim for the body · C — focus',
+      2: 'helmets — aim for the body · F — focus',
       3: 'hostages in windows · T — thermal',
       4: 'rooftop snipers · supply drones',
       5: 'wind pushes the bullet',
@@ -157,8 +157,8 @@ const TEXTS: Record<Lang, Texts> = {
     onTheMove: ' ON THE MOVE',
     plusLife: '+1 LIFE',
     plusAmmo: '+3 AMMO',
-    plusAp: n => `+${n} AP ${n > 1 ? 'ROUNDS' : 'ROUND'} [G]`,
-    apStreak: '3 HEADSHOTS IN A ROW · +1 AP ROUND [G]',
+    plusAp: n => `+${n} AP ${n > 1 ? 'ROUNDS' : 'ROUND'} [A]`,
+    apStreak: '3 HEADSHOTS IN A ROW · +1 AP ROUND [A]',
     pierced: ' PIERCED',
     ufo: 'UFO DOWN! · X-FILES +2500',
     moonSniper: 'MOON SNIPER · +1000',
@@ -197,9 +197,9 @@ const TEXTS: Record<Lang, Texts> = {
     hudLevel: (l, s, n) => `│ lv.${l} stage ${s}/${n} `,
     hudTargets: (k, n) => `│ targets ${k}/${n} `,
     hudAmmo: '│ ammo ',
-    hudAp: (n, on) => ` AP×${n}${on ? ' ON' : ' [G]'}`,
+    hudAp: (n, on) => ` AP×${n}${on ? ' ON' : ' [A]'}`,
     hudFocus: 'focus',
-    hudFocusReady: 'focus [C]',
+    hudFocusReady: 'focus [F]',
     hudFocusOn: 'FOCUS!',
     hudHeat: 'heat [T]',
     hudWind: 'wind',
@@ -208,8 +208,8 @@ const TEXTS: Record<Lang, Texts> = {
     hudReloading: '│ reloading ',
     hudSoundOff: '│ sound off ',
     hudMusicOff: '│ ♪ off ',
-    zoomBtn: '◎ ZOOM   [E]',
-    help: ' mouse/arrows — aim · click/space — fire · E/RMB — scope · G — AP rounds · C — focus · T — thermal · P — pause · L — language · B — music · V — sound · Esc — quit',
+    zoomBtn: '◎ ZOOM   [Z]',
+    help: ' mouse/arrows — aim · click/space — fire · Z/RMB — zoom · A — AP rounds · F — focus · T — thermal · P — pause · L — language · B — background music · S — sound · Esc — quit',
     tooSmall: (w, h) => `Needs at least 50×16 cells, now ${w}×${h}. Make the panel bigger.`,
   },
   ru: {
@@ -220,7 +220,7 @@ const TEXTS: Record<Lang, Texts> = {
       { name: 'Очень сложно', hint: '1 жизнь, патронов ровно по целям: промах = провал. Без зума не попасть' },
     ],
     news: {
-      2: 'каски — бей в тело · C — фокус',
+      2: 'каски — бей в тело · F — фокус',
       3: 'заложники в окнах · T — тепловизор',
       4: 'снайперы на крышах · дроны снабжения',
       5: 'ветер сносит пулю',
@@ -241,8 +241,8 @@ const TEXTS: Record<Lang, Texts> = {
     onTheMove: ' НА ХОДУ',
     plusLife: '+1 ЖИЗНЬ',
     plusAmmo: '+3 ПАТРОНА',
-    plusAp: n => `+${n} ${n > 1 ? 'БРОНЕБОЙНЫХ' : 'БРОНЕБОЙНЫЙ'} [G]`,
-    apStreak: '3 ХЕДШОТА ПОДРЯД · +1 БРОНЕБОЙНЫЙ [G]',
+    plusAp: n => `+${n} ${n > 1 ? 'БРОНЕБОЙНЫХ' : 'БРОНЕБОЙНЫЙ'} [A]`,
+    apStreak: '3 ХЕДШОТА ПОДРЯД · +1 БРОНЕБОЙНЫЙ [A]',
     pierced: ' ПРОБИЛ',
     ufo: 'НЛО СБИТО! · X-FILES +2500',
     moonSniper: 'ЛУННЫЙ СНАЙПЕР · +1000',
@@ -281,9 +281,9 @@ const TEXTS: Record<Lang, Texts> = {
     hudLevel: (l, s, n) => `│ ур.${l} этап ${s}/${n} `,
     hudTargets: (k, n) => `│ цели ${k}/${n} `,
     hudAmmo: '│ патроны ',
-    hudAp: (n, on) => ` ББ×${n}${on ? ' ВКЛ' : ' [G]'}`,
+    hudAp: (n, on) => ` ББ×${n}${on ? ' ВКЛ' : ' [A]'}`,
     hudFocus: 'фокус',
-    hudFocusReady: 'фокус [C]',
+    hudFocusReady: 'фокус [F]',
     hudFocusOn: 'ФОКУС!',
     hudHeat: 'тепло [T]',
     hudWind: 'ветер',
@@ -292,8 +292,8 @@ const TEXTS: Record<Lang, Texts> = {
     hudReloading: '│ перезарядка ',
     hudSoundOff: '│ звук выкл ',
     hudMusicOff: '│ ♪ выкл ',
-    zoomBtn: '◎ ЗУМ    [E]',
-    help: ' мышь/стрелки — прицел · клик/пробел — огонь · E/ПКМ — оптика · G — бронебойные · C — фокус · T — тепловизор · P — пауза · L — язык · B — музыка · V — звук · Esc — выйти',
+    zoomBtn: '◎ ЗУМ    [Z]',
+    help: ' мышь/стрелки — прицел · клик/пробел — огонь · Z/ПКМ — зум · A — бронебойные · F — фокус · T — тепловизор · P — пауза · L — язык · B — музыка · S — звук · Esc — выйти',
     tooSmall: (w, h) => `Нужно хотя бы 50×16 клеток, сейчас ${w}×${h}. Растяни панель.`,
   },
 }
@@ -1935,7 +1935,7 @@ const hud = (g: Game): Span[] => {
     used += text.length
   }
   // zoom button on the right — it is clickable
-  const label = g.zoom ? (g.zoomT >= d.settle ? '◎ ZOOM 2× [E]' : '◎ ZOOM …  [E]') : t.zoomBtn
+  const label = g.zoom ? (g.zoomT >= d.settle ? '◎ ZOOM 2× [Z]' : '◎ ZOOM …  [Z]') : t.zoomBtn
   spans.push({ text: ' '.repeat(Math.max(0, g.W - used - ZOOM_W)), fg: '#ffffff', bg })
   spans.push({ text: ` ${label} `.padEnd(ZOOM_W), fg: g.zoom ? '#0d0f1a' : '#ff5050', bg: g.zoom ? '#ff4040' : '#2a0d12' })
   return spans
@@ -2100,7 +2100,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
       } else if (g.phase === 'intro' && g.menuY >= 0 && row >= 0 && row < DIFFS.length) {
         g.diff = row
         fresh(g)
-      } else if (e.button === 'right' || e.button === 'middle' || e.ctrl || e.alt) toggleZoom()
+      } else if (e.button === 'right') toggleZoom()
       else if (e.y >= 1) primary()
     }
     redraw()
@@ -2109,7 +2109,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
   surface.onKey((e: ClientKeyEvent) => {
     const g = cur()
     const k = e.key.toLowerCase()
-    konami(g, k)
+    if (konami(g, k)) return redraw()
     const step = e.shift ? 4 : 1
     const n = Number(k)
     // Cyrillic letters are the same physical keys on a Russian layout
@@ -2129,32 +2129,31 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     else if (g.phase === 'intro' && n >= 1 && n <= DIFFS.length) {
       g.diff = n - 1
       fresh(g)
-    } else if (g.phase === 'intro' && (k === 'up' || k === 'w' || k === 'ц')) g.diff = Math.max(0, g.diff - 1)
-    else if (g.phase === 'intro' && (k === 'down' || k === 's' || k === 'ы')) g.diff = Math.min(DIFFS.length - 1, g.diff + 1)
+    } else if (g.phase === 'intro' && k === 'up') g.diff = Math.max(0, g.diff - 1)
+    else if (g.phase === 'intro' && k === 'down') g.diff = Math.min(DIFFS.length - 1, g.diff + 1)
     else if ((k === 'm' || k === 'ь') && (g.phase === 'won' || g.phase === 'lost')) g.phase = 'intro'
     else if (k === 'l' || k === 'д') {
       g.lang = g.lang === 'en' ? 'ru' : 'en'
       g.langPending = true
     } else if (k === 'b' || k === 'и') g.music = !g.music
-    else if (k === 'v' || k === 'м') g.sound = !g.sound
-    else if (k === 'left' || k === 'a' || k === 'ф') g.ax = clamp(g.ax - step * 2, 0, g.W - 1)
-    else if (k === 'right' || k === 'd' || k === 'в') g.ax = clamp(g.ax + step * 2, 0, g.W - 1)
-    else if (k === 'up' || k === 'w' || k === 'ц') g.ay = clamp(g.ay - step, 0, g.H - 1)
-    else if (k === 'down' || k === 's' || k === 'ы') g.ay = clamp(g.ay + step, 0, g.H - 1)
-    else if (k === ' ' || k === 'space' || k === 'return' || k === 'f' || k === 'а') primary()
-    else if (['x', 'e', 'q', 'tab', 'ч', 'у', 'й'].includes(k)) toggleZoom()
-    else if ((k === 'c' || k === 'с') && g.phase === 'play' && g.focus >= 1 && !g.paused) {
+    else if (k === 's' || k === 'ы') g.sound = !g.sound
+    else if (k === 'left') g.ax = clamp(g.ax - step * 2, 0, g.W - 1)
+    else if (k === 'right') g.ax = clamp(g.ax + step * 2, 0, g.W - 1)
+    else if (k === 'up') g.ay = clamp(g.ay - step, 0, g.H - 1)
+    else if (k === 'down') g.ay = clamp(g.ay + step, 0, g.H - 1)
+    else if (k === ' ' || k === 'space' || k === 'return') primary()
+    else if (k === 'z' || k === 'я') toggleZoom()
+    else if ((k === 'f' || k === 'а') && g.phase === 'play' && g.focus >= 1 && !g.paused) {
       g.focus = 0
       g.focusT = 2500
       g.sfx.push('focus')
-    } else if ((k === 'g' || k === 'п') && g.phase === 'play' && !g.paused) {
+    } else if ((k === 'a' || k === 'ф') && g.phase === 'play' && !g.paused) {
       if (g.ap > 0) g.apOn = !g.apOn
       g.sfx.push(g.ap > 0 ? 'reload' : 'empty')
     } else if ((k === 't' || k === 'е') && g.phase === 'play' && g.level >= 3 && !g.paused) {
       if (g.thermal || g.battery > 300) g.thermal = !g.thermal
       g.sfx.push('zoom')
-    }
-    else if (k === 'p' || k === 'з') {
+    } else if (k === 'p' || k === 'з') {
       if (g.phase === 'play') g.paused = !g.paused
     } else if ((k === 'n' || k === 'т') && g.phase === 'won') startLevel(g, g.level + 1)
     redraw()
@@ -2167,11 +2166,14 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
 const KONAMI = ['up', 'up', 'down', 'down', 'left', 'right', 'left', 'right', 'b', 'a']
 const konami = (g: Game, k: string) => {
   g.keys = [...g.keys, k === 'и' ? 'b' : k === 'ф' ? 'a' : k].slice(-KONAMI.length)
-  if (g.rainbow || g.keys.join() !== KONAMI.join()) return
+  if (g.rainbow || g.keys.join() !== KONAMI.join()) return false
+  // B and A are game keys too: undo the music toggle B made, A is swallowed
+  g.music = !g.music
   g.rainbow = true
   g.ammo += 10
   g.sfx.push('pickup')
   showBanner(g, tx(g).konami, '#ff3df2', 3000)
+  return true
 }
 
 const begin = (g: Game) => {
