@@ -19,7 +19,7 @@ test('the game starts on click, HUD shows stage and targets', async ($, on) => {
   }
 })
 
-test('zoom toggles with Z, E and the HUD button and drops after a shot', async ($, on) => {
+test('zoom toggles with X, E and the HUD button and drops after a shot, Z does nothing', async ($, on) => {
   mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
@@ -27,12 +27,15 @@ test('zoom toggles with Z, E and the HUD button and drops after a shot', async (
 
   await ui.key({ key: 'z', in: 'game' })
   await ui.advance(400)
+  expect(await ui.find({ type: 'Text', text: /ZOOM 2×/, in: 'game' })).toBeUndefined()
+  await ui.key({ key: 'x', in: 'game' })
+  await ui.advance(400)
   expect(await ui.find({ type: 'Text', text: /ZOOM 2×/, in: 'game' })).toBeDefined()
 
   // a shot drops the scope
   await ui.key({ key: ' ', in: 'game' })
   await ui.advance(100)
-  expect(await ui.find({ type: 'Text', text: /ZOOM \[Z\/E\]/, in: 'game' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /ZOOM   \[E\]/, in: 'game' })).toBeDefined()
 
   await ui.advance(900)
   await ui.key({ key: 'e', in: 'game' })
@@ -47,7 +50,7 @@ test('zoom toggles with Z, E and the HUD button and drops after a shot', async (
   await ui.unmount()
 })
 
-test('an empty magazine fails the mission, R restarts', async ($, on) => {
+test('an empty magazine fails the mission, R does nothing, C retries the stage', async ($, on) => {
   mock.store(on, { starAsked: true, best: 0 })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
@@ -61,10 +64,12 @@ test('an empty magazine fails the mission, R restarts', async ($, on) => {
   await ui.advance(400)
   expect(await ui.find({ type: 'Text', text: /MISSION FAILED/, in: 'game' })).toBeDefined()
 
-  // space right after a loss does not restart, R does
+  // space right after a loss does nothing, R never restarts, C retries the stage
   await ui.key({ key: ' ', in: 'game' })
   expect(await ui.find({ type: 'Text', text: /MISSION FAILED/, in: 'game' })).toBeDefined()
   await ui.key({ key: 'r', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /MISSION FAILED/, in: 'game' })).toBeDefined()
+  await ui.key({ key: 'c', in: 'game' })
   expect(await ui.find({ type: 'Text', text: /targets 0\/3/, in: 'game' })).toBeDefined()
   await ui.unmount()
 })
@@ -181,11 +186,20 @@ test('L switches the language and it is remembered', async ($, on) => {
   await again.unmount()
 })
 
-test('save: a click on the menu asks before wiping the progress, N keeps it', async ($, on) => {
+test('save: a click on the menu continues the save', async ($, on) => {
   mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.pointer({ type: 'down', x: 50, y: 5, button: 'left', in: 'game' })
+  expect(await ui.find({ type: 'Text', text: /lv\.3 stage 2\/3/, in: 'game' })).toBeDefined()
+  await ui.unmount()
+})
+
+test('save: N in the menu asks before wiping the progress, a click does not answer, N keeps it', async ($, on) => {
+  mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
+  const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
+  await ui.resize({ columns: 100, rows: 30, in: 'game' })
+  await ui.key({ key: 'n', in: 'game' })
   expect(await ui.find({ type: 'Text', text: /START OVER\?/, in: 'game' })).toBeDefined()
   // another click does not answer
   await ui.pointer({ type: 'down', x: 50, y: 5, button: 'left', in: 'game' })
@@ -205,14 +219,12 @@ test('save: Y starts over after the question', async ($, on) => {
   await ui.unmount()
 })
 
-test('save: R in combat asks and stops the game, N returns to the stage', async ($, on) => {
+test('R in combat does nothing', async ($, on) => {
   mock.store(on, { starAsked: true, best: 0, save: { level: 3, stage: 1, score: 1234, shots: 5, hits: 4, diff: 1, hp: 2 } })
   const ui = await $.ui.mount({ plugin: 'sniper', surface: 'terminal', ...PANE })
   await ui.resize({ columns: 100, rows: 30, in: 'game' })
   await ui.key({ key: 'c', in: 'game' })
   await ui.key({ key: 'r', in: 'game' })
-  expect(await ui.find({ type: 'Text', text: /START OVER\?/, in: 'game' })).toBeDefined()
-  await ui.key({ key: 'n', in: 'game' })
   expect(await ui.find({ type: 'Text', text: /START OVER\?/, in: 'game' })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /lv\.3 stage 2\/3/, in: 'game' })).toBeDefined()
   await ui.unmount()

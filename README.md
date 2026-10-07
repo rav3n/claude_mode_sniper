@@ -83,15 +83,16 @@ Claude Code watches a `--plugin-dir` folder, so edits reload the mod on their ow
 |---|---|
 | Aim | mouse, arrows or `WASD` (`Shift` — faster) |
 | Fire | click, `Space`, `F`, `Enter` |
-| 2× scope | `Z`, `E`, `Q`, `Tab`, right mouse button or the "◎ ZOOM" button in the corner |
+| 2× scope | `E`, `X`, `Q`, `Tab`, right mouse button or the "◎ ZOOM" button in the corner |
 | Focus (slow motion) | `C` — from level 2, charged by kills |
 | Armor-piercing rounds | `G` — on/off. They go through helmets. You get 1 for three headshots in a row (from level 2) and 2 from a supply drone |
 | Thermal | `T` — from level 3, the battery drains and recharges |
-| Pause / restart | `P` / `R` |
+| Pause | `P` |
 | Language (English / Русский) | `L` |
 | Music / sound | `B` / `V` |
-| Difficulty | `1`–`4` in the menu, `M` after a fight |
-| Continue a saved game | `C` in the menu; after a loss — retry the stage |
+| Difficulty | `1`–`4` in the menu (starts a new game); `M` after a fight — back to the menu |
+| Continue a saved game | click, `Space` or `C` in the menu; after a loss — retry the stage |
+| New game | only from the menu: `N` or a difficulty `1`–`4`, after a confirmation when a save exists |
 
 Keys also work on a Russian keyboard layout.
 
@@ -103,7 +104,7 @@ Keys also work on a Russian keyboard layout.
 - Red barrels explode in a chain and take nearby enemies with them.
 - Quick kills in a row give DOUBLE KILL, TRIPLE KILL and RAMPAGE.
 - The last enemy of a stage triggers slow motion.
-- Progress saves itself at the start of every stage and after each completed level. Close the panel or Claude Code — next time the menu offers "C — continue" with your level, stage and score.
+- Progress saves itself at the start of every stage and after each completed level. Close the panel or Claude Code — next time a click in the menu continues from your level, stage and score.
 
 ### What each level unlocks
 

@@ -92,6 +92,7 @@ type Texts = {
   difficulty: string
   start: string
   resume: (s: Save) => string
+  newGame: string
   lang: string
   levelDone: (level: number) => string
   scoreAcc: (score: number, acc: number) => string
@@ -176,14 +177,15 @@ const TEXTS: Record<Lang, Texts> = {
     ],
     difficulty: 'Difficulty (1–4, arrows, click a line):',
     start: 'Space or click — start',
-    resume: s => `C — continue: level ${s.level}, stage ${s.stage + 1}, score ${s.score}`,
+    resume: s => `Click or C — continue: level ${s.level}, stage ${s.stage + 1}, score ${s.score}`,
+    newGame: 'N or 1–4 — new game',
     lang: 'L — language: English',
     levelDone: l => `LEVEL ${l} COMPLETE`,
     scoreAcc: (sc, a) => `Score ${sc} · accuracy ${a}%`,
-    nextHint: 'Click or N — next level · M — difficulty',
+    nextHint: 'Click or N — next level · M — menu',
     failed: 'MISSION FAILED',
     failedStats: (l, s, n, sc, b) => `Level ${l} · stage ${s}/${n} · score ${sc} · best ${b}`,
-    failedHint: saved => (saved ? 'Click or R — restart · C — retry the stage · M — difficulty' : 'Click or R — restart · M — difficulty'),
+    failedHint: saved => (saved ? 'Click or C — retry the stage · M — menu' : 'Click or M — menu'),
     paused: 'PAUSED',
     pauseHint: 'P — resume',
     confirmTitle: 'START OVER?',
@@ -206,8 +208,8 @@ const TEXTS: Record<Lang, Texts> = {
     hudReloading: '│ reloading ',
     hudSoundOff: '│ sound off ',
     hudMusicOff: '│ ♪ off ',
-    zoomBtn: '◎ ZOOM [Z/E]',
-    help: ' mouse/arrows — aim · click/space — fire · Z/E/RMB — scope · G — AP rounds · C — focus · T — thermal · P — pause · R — restart · L — language · B — music · V — sound · Esc — quit',
+    zoomBtn: '◎ ZOOM   [E]',
+    help: ' mouse/arrows — aim · click/space — fire · E/RMB — scope · G — AP rounds · C — focus · T — thermal · P — pause · L — language · B — music · V — sound · Esc — quit',
     tooSmall: (w, h) => `Needs at least 50×16 cells, now ${w}×${h}. Make the panel bigger.`,
   },
   ru: {
@@ -259,14 +261,15 @@ const TEXTS: Record<Lang, Texts> = {
     ],
     difficulty: 'Сложность (1–4, стрелки, клик по строке):',
     start: 'Пробел или клик — начать',
-    resume: s => `C — продолжить: уровень ${s.level}, этап ${s.stage + 1}, счёт ${s.score}`,
+    resume: s => `Клик или C — продолжить: ур. ${s.level}, этап ${s.stage + 1}, счёт ${s.score}`,
+    newGame: 'N или 1–4 — новая игра',
     lang: 'L — язык: русский',
     levelDone: l => `УРОВЕНЬ ${l} ПРОЙДЕН`,
     scoreAcc: (sc, a) => `Счёт ${sc} · точность ${a}%`,
-    nextHint: 'Клик или N — следующий уровень · M — сложность',
+    nextHint: 'Клик или N — следующий уровень · M — меню',
     failed: 'МИССИЯ ПРОВАЛЕНА',
     failedStats: (l, s, n, sc, b) => `Уровень ${l} · этап ${s}/${n} · счёт ${sc} · рекорд ${b}`,
-    failedHint: saved => (saved ? 'Клик или R — заново · C — с начала этапа · M — сложность' : 'Клик или R — заново · M — сложность'),
+    failedHint: saved => (saved ? 'Клик или C — с начала этапа · M — меню' : 'Клик или M — меню'),
     paused: 'ПАУЗА',
     pauseHint: 'P — продолжить',
     confirmTitle: 'НАЧАТЬ ЗАНОВО?',
@@ -289,8 +292,8 @@ const TEXTS: Record<Lang, Texts> = {
     hudReloading: '│ перезарядка ',
     hudSoundOff: '│ звук выкл ',
     hudMusicOff: '│ ♪ выкл ',
-    zoomBtn: '◎ ЗУМ  [Z/E]',
-    help: ' мышь/стрелки — прицел · клик/пробел — огонь · Z/E/ПКМ — оптика · G — бронебойные · C — фокус · T — тепловизор · P — пауза · R — заново · L — язык · B — музыка · V — звук · Esc — выйти',
+    zoomBtn: '◎ ЗУМ    [E]',
+    help: ' мышь/стрелки — прицел · клик/пробел — огонь · E/ПКМ — оптика · G — бронебойные · C — фокус · T — тепловизор · P — пауза · L — язык · B — музыка · V — звук · Esc — выйти',
     tooSmall: (w, h) => `Нужно хотя бы 50×16 клеток, сейчас ${w}×${h}. Растяни панель.`,
   },
 }
@@ -1820,9 +1823,12 @@ const overlay = (g: Game, l: Layer) => {
     DIFFS.forEach((d, i) => lines.push([`${i === g.diff ? '▶' : ' '} ${i + 1}. ${t.diffs[i]!.name.padEnd(13)}`, i === g.diff ? d.color : '#7d8590']))
     lines.push([t.diffs[g.diff]!.hint, diffOf(g).color])
     lines.push(['', ''])
-    lines.push([t.start, '#ffe14d'])
+    // with a save the main action continues it; a new game is a separate key
     const sv = g.saved
-    if (sv) lines.push([t.resume(sv), '#7dff6b'])
+    if (sv) {
+      lines.push([t.resume(sv), '#7dff6b'])
+      lines.push([t.newGame, '#ffe14d'])
+    } else lines.push([t.start, '#ffe14d'])
     lines.push([t.lang, '#9ad1ff'])
   } else if (g.phase === 'won') {
     lines.push([tx(g).levelDone(g.level), '#7dff6b'])
@@ -1929,7 +1935,7 @@ const hud = (g: Game): Span[] => {
     used += text.length
   }
   // zoom button on the right — it is clickable
-  const label = g.zoom ? (g.zoomT >= d.settle ? '◎ ZOOM 2× [Z]' : '◎ ZOOM …  [Z]') : t.zoomBtn
+  const label = g.zoom ? (g.zoomT >= d.settle ? '◎ ZOOM 2× [E]' : '◎ ZOOM …  [E]') : t.zoomBtn
   spans.push({ text: ' '.repeat(Math.max(0, g.W - used - ZOOM_W)), fg: '#ffffff', bg })
   spans.push({ text: ` ${label} `.padEnd(ZOOM_W), fg: g.zoom ? '#0d0f1a' : '#ff5050', bg: g.zoom ? '#ff4040' : '#2a0d12' })
   return spans
@@ -2063,8 +2069,12 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
   const primary = () => {
     const g = cur()
     if ((g.phase === 'won' || g.phase === 'lost') && g.time - g.endT < 800) return
-    if (g.phase === 'intro' || g.phase === 'lost') fresh(g)
-    else if (g.phase === 'won') startLevel(g, g.level + 1)
+    // a new game starts only from the menu; after a loss the stage is retried
+    if (g.phase === 'intro' && !g.saved) fresh(g)
+    else if (g.phase === 'intro' || g.phase === 'lost') {
+      if (g.saved) resume(g)
+      else g.phase = 'intro'
+    } else if (g.phase === 'won') startLevel(g, g.level + 1)
     else if (g.phase === 'play' && !g.paused) shoot(g)
   }
   const toggleZoom = () => {
@@ -2115,6 +2125,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
       if (k === 'y' || k === 'н') begin(g)
       else if (k === 'n' || k === 'т') g.confirm = false
     } else if ((k === 'c' || k === 'с') && (g.phase === 'intro' || g.phase === 'lost') && g.saved) resume(g)
+    else if ((k === 'n' || k === 'т') && g.phase === 'intro') fresh(g)
     else if (g.phase === 'intro' && n >= 1 && n <= DIFFS.length) {
       g.diff = n - 1
       fresh(g)
@@ -2131,7 +2142,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     else if (k === 'up' || k === 'w' || k === 'ц') g.ay = clamp(g.ay - step, 0, g.H - 1)
     else if (k === 'down' || k === 's' || k === 'ы') g.ay = clamp(g.ay + step, 0, g.H - 1)
     else if (k === ' ' || k === 'space' || k === 'return' || k === 'f' || k === 'а') primary()
-    else if (['z', 'x', 'e', 'q', 'tab', 'я', 'ч', 'у', 'й'].includes(k)) toggleZoom()
+    else if (['x', 'e', 'q', 'tab', 'ч', 'у', 'й'].includes(k)) toggleZoom()
     else if ((k === 'c' || k === 'с') && g.phase === 'play' && g.focus >= 1 && !g.paused) {
       g.focus = 0
       g.focusT = 2500
@@ -2145,8 +2156,7 @@ const init = (surface: ClientSurface<State>, W: number, H: number, best: number,
     }
     else if (k === 'p' || k === 'з') {
       if (g.phase === 'play') g.paused = !g.paused
-    } else if (k === 'r' || k === 'к') fresh(g)
-    else if ((k === 'n' || k === 'т') && g.phase === 'won') startLevel(g, g.level + 1)
+    } else if ((k === 'n' || k === 'т') && g.phase === 'won') startLevel(g, g.level + 1)
     redraw()
   })
 
